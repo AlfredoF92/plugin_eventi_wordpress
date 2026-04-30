@@ -19,6 +19,8 @@ class Evento_Scheda {
         add_shortcode( 'cral_evento_scheda', array( $this, 'render' ) );
         add_action( 'wp_ajax_nopriv_cral_prenota_scheda', array( $this, 'handle_prenota' ) );
         add_action( 'wp_ajax_cral_prenota_scheda', array( $this, 'handle_prenota' ) );
+        add_action( 'wp_ajax_nopriv_cral_annulla_scheda', array( $this, 'handle_annulla' ) );
+        add_action( 'wp_ajax_cral_annulla_scheda', array( $this, 'handle_annulla' ) );
     }
 
     /**
@@ -43,6 +45,7 @@ class Evento_Scheda {
         $titolo              = get_the_title( $evento_id );
         $data_raw            = get_post_meta( $evento_id, '_cral_evento_data', true );
         $data_iscr_raw       = get_post_meta( $evento_id, '_cral_evento_data_iscrizione', true );
+        $data_apertura_raw   = get_post_meta( $evento_id, '_cral_evento_data_apertura_iscrizioni', true );
         $luogo               = get_post_meta( $evento_id, '_cral_evento_luogo', true );
         $stato               = get_post_meta( $evento_id, '_cral_evento_stato', true );
         $posti_totali        = (int) get_post_meta( $evento_id, '_cral_evento_posti_totali', true );
@@ -71,11 +74,24 @@ class Evento_Scheda {
         );
         $enabled_types = array_filter( $acc_config, static function( $c ) { return ! empty( $c['enabled'] ); } );
 
-        // Stato evento.
-        $is_soldout    = ( $posti_residui <= 0 );
-        $is_annullato  = ( 'annullato' === $stato );
-        $is_concluso   = ( 'concluso' === $stato );
-        $is_open       = ( ! $is_soldout && ! $is_annullato && ! $is_concluso );
+        // --- Calcolo stato dinamico badge ---
+        $now               = time();
+        $ts_evento         = $data_raw       ? strtotime( (string) $data_raw )       : 0;
+        $ts_scadenza       = $data_iscr_raw  ? strtotime( (string) $data_iscr_raw )  : 0;
+        $ts_apertura       = $data_apertura_raw ? strtotime( (string) $data_apertura_raw ) : 0;
+
+        $is_annullato      = ( 'annullato' === $stato );
+        $is_concluso       = ( 'concluso' === $stato ) || ( $ts_evento > 0 && $ts_evento < $now );
+        $is_soldout        = ( ! $is_annullato && ! $is_concluso && $posti_residui <= 0 );
+        $is_iscr_chiuse    = ( ! $is_annullato && ! $is_concluso && ! $is_soldout && $ts_scadenza > 0 && $ts_scadenza < $now );
+        $is_non_ancora     = ( ! $is_annullato && ! $is_concluso && ! $is_soldout && ! $is_iscr_chiuse && $ts_apertura > 0 && $ts_apertura > $now );
+        $is_open           = ( ! $is_annullato && ! $is_concluso && ! $is_soldout && ! $is_iscr_chiuse && ! $is_non_ancora );
+
+        // Formattazione date badge.
+        $fmt_badge_data = static function( $ts ) {
+            return $ts ? wp_date( 'd/m/Y', $ts ) : '';
+        };
+        $partecipanti_count = $posti_totali - $posti_residui;
 
         // Utente loggato.
         $auth          = new \GEvent\Auth();
@@ -122,15 +138,42 @@ class Evento_Scheda {
             <!-- ═══ RIEPILOGO EVENTO ═══ -->
             <div class="cral-scheda__info">
 
-                <!-- Badge stato -->
+                <!-- Badge stato dinamico -->
                 <?php if ( $is_annullato ) : ?>
-                    <div class="cral-scheda__badge cral-scheda__badge--annullato">Evento annullato</div>
+                    <div class="cral-scheda__badge cral-scheda__badge--annullato">
+                        <span class="cral-scheda__badge-title">Evento annullato</span>
+                    </div>
                 <?php elseif ( $is_concluso ) : ?>
-                    <div class="cral-scheda__badge cral-scheda__badge--concluso">Evento concluso</div>
+                    <div class="cral-scheda__badge cral-scheda__badge--concluso">
+                        <span class="cral-scheda__badge-title">Evento concluso</span>
+                        <?php if ( $partecipanti_count > 0 ) : ?>
+                        <span class="cral-scheda__badge-sub">Partecipanti: <?php echo esc_html( $partecipanti_count ); ?></span>
+                        <?php endif; ?>
+                    </div>
                 <?php elseif ( $is_soldout ) : ?>
-                    <div class="cral-scheda__badge cral-scheda__badge--soldout">&#x1F6AB; SOLD OUT</div>
+                    <div class="cral-scheda__badge cral-scheda__badge--soldout">
+                        <span class="cral-scheda__badge-title">&#x1F6AB; Sold out</span>
+                        <span class="cral-scheda__badge-sub">Posti disponibili: 0</span>
+                    </div>
+                <?php elseif ( $is_iscr_chiuse ) : ?>
+                    <div class="cral-scheda__badge cral-scheda__badge--chiuse">
+                        <span class="cral-scheda__badge-title">Iscrizioni chiuse</span>
+                        <?php if ( $ts_scadenza ) : ?>
+                        <span class="cral-scheda__badge-sub">Scadute il <?php echo esc_html( $fmt_badge_data( $ts_scadenza ) ); ?></span>
+                        <?php endif; ?>
+                    </div>
+                <?php elseif ( $is_non_ancora ) : ?>
+                    <div class="cral-scheda__badge cral-scheda__badge--presto">
+                        <span class="cral-scheda__badge-title">Evento pubblicato</span>
+                        <span class="cral-scheda__badge-sub">Le iscrizioni aprono il <?php echo esc_html( $fmt_badge_data( $ts_apertura ) ); ?></span>
+                    </div>
                 <?php else : ?>
-                    <div class="cral-scheda__badge cral-scheda__badge--aperto">Iscrizioni aperte</div>
+                    <div class="cral-scheda__badge cral-scheda__badge--aperto">
+                        <span class="cral-scheda__badge-title">Iscrizioni aperte</span>
+                        <?php if ( $ts_scadenza ) : ?>
+                        <span class="cral-scheda__badge-sub">fino al <?php echo esc_html( $fmt_badge_data( $ts_scadenza ) ); ?></span>
+                        <?php endif; ?>
+                    </div>
                 <?php endif; ?>
 
                 <!-- Prezzi -->
@@ -167,7 +210,92 @@ class Evento_Scheda {
                     <p class="cral-scheda__msg cral-scheda__msg--error">Questo evento è stato annullato e non è possibile iscriversi.</p>
 
                 <?php elseif ( $is_concluso ) : ?>
+                    <?php
+                    // Cerca prenotazione confermata del socio anche per eventi conclusi.
+                    $pren_concluso_id = 0;
+                    if ( $socio_id ) {
+                        $pren_concluso = get_posts( array(
+                            'post_type'      => 'prenotazione',
+                            'posts_per_page' => 1,
+                            'meta_query'     => array(
+                                'relation' => 'AND',
+                                array( 'key' => '_cral_pren_socio_id',  'value' => $socio_id ),
+                                array( 'key' => '_cral_pren_evento_id', 'value' => $evento_id ),
+                                array( 'key' => '_cral_pren_stato', 'value' => array( 'confermata', 'in_attesa' ), 'compare' => 'IN' ),
+                            ),
+                            'fields' => 'ids',
+                        ) );
+                        if ( ! empty( $pren_concluso ) ) {
+                            $pren_concluso_id = (int) $pren_concluso[0];
+                        }
+                    }
+                    ?>
+                    <?php if ( $pren_concluso_id ) :
+                        $pc_data      = get_post_meta( $pren_concluso_id, '_cral_pren_data', true );
+                        $pc_importo   = (float) get_post_meta( $pren_concluso_id, '_cral_pren_importo_totale', true );
+                        $pc_biglietti = (int) get_post_meta( $pren_concluso_id, '_cral_pren_totale_biglietti', true );
+                        $pc_note      = (string) get_post_meta( $pren_concluso_id, '_cral_pren_note', true );
+                        $pc_partecipanti = carbon_get_post_meta( $pren_concluso_id, 'cral_partecipanti' );
+                        $pc_data_fmt  = $pc_data ? wp_date( 'd/m/Y', strtotime( $pc_data ) ) : '—';
+                    ?>
+                    <p class="cral-scheda__msg cral-scheda__msg--info">&#10003; Hai partecipato a questo evento.</p>
+                    <div class="cral-scheda__riepilogo">
+                        <div class="cral-scheda__riepilogo-row cral-scheda__riepilogo-row--head">
+                            <span>Riepilogo prenotazione</span>
+                            <strong></strong>
+                        </div>
+                        <div class="cral-scheda__riepilogo-row">
+                            <span>Data prenotazione</span>
+                            <strong><?php echo esc_html( $pc_data_fmt ); ?></strong>
+                        </div>
+                        <div class="cral-scheda__riepilogo-row">
+                            <span>Prezzo biglietto</span>
+                            <strong><?php echo wp_kses_post( $fmt_euro( $prezzo_base ) ); ?></strong>
+                        </div>
+                        <div class="cral-scheda__riepilogo-row">
+                            <span>Biglietti acquistati</span>
+                            <strong><?php echo esc_html( $pc_biglietti ); ?></strong>
+                        </div>
+                        <?php
+                        // Accompagnatori (escludi il socio stesso che è il primo).
+                        $acc_list = is_array( $pc_partecipanti ) ? array_slice( $pc_partecipanti, 1 ) : array();
+                        if ( ! empty( $acc_list ) ) : ?>
+                        <div class="cral-scheda__riepilogo-row cral-scheda__riepilogo-row--sub-head">
+                            <span><em>Accompagnatori</em></span>
+                            <strong></strong>
+                        </div>
+                        <?php foreach ( $acc_list as $acc ) :
+                            $acc_nome    = trim( ( $acc['partecipante_nome'] ?? '' ) . ' ' . ( $acc['partecipante_cognome'] ?? '' ) );
+                            $acc_tipo    = $acc['partecipante_tipologia'] ?? '';
+                            $acc_prezzo  = (float) ( $acc['partecipante_prezzo'] ?? 0 );
+                        ?>
+                        <div class="cral-scheda__riepilogo-row cral-scheda__riepilogo-row--acc">
+                            <span class="cral-scheda__acc-nome-wrap">
+                                <span><?php echo esc_html( $acc_nome ); ?></span>
+                                <?php if ( $acc_tipo ) : ?>
+                                <em class="cral-scheda__acc-tipo"><?php echo esc_html( $acc_tipo ); ?></em>
+                                <?php endif; ?>
+                            </span>
+                            <strong><?php echo wp_kses_post( $fmt_euro( $acc_prezzo ) ); ?></strong>
+                        </div>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
+                        <div class="cral-scheda__riepilogo-row cral-scheda__riepilogo-row--total">
+                            <span>Totale pagato</span>
+                            <strong><?php echo wp_kses_post( $fmt_euro( $pc_importo ) ); ?></strong>
+                        </div>
+                        <?php if ( $pc_note ) : ?>
+                        <div class="cral-scheda__note-block">
+                            <p class="cral-scheda__note-label">Note</p>
+                            <div class="cral-scheda__note-body" data-cral-note>
+                                <p class="cral-scheda__note-text"><?php echo nl2br( esc_html( $pc_note ) ); ?></p>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php else : ?>
                     <p class="cral-scheda__msg cral-scheda__msg--info">Questo evento si è concluso.</p>
+                    <?php endif; ?>
 
                 <?php elseif ( $is_soldout ) : ?>
                     <div class="cral-scheda__soldout">
@@ -177,24 +305,162 @@ class Evento_Scheda {
                     </div>
 
                 <?php elseif ( $gia_prenotato ) : ?>
+                    <?php
+                    $gp_data        = get_post_meta( $pren_esistente_id, '_cral_pren_data', true );
+                    $gp_stato       = get_post_meta( $pren_esistente_id, '_cral_pren_stato', true );
+                    $gp_importo     = (float) get_post_meta( $pren_esistente_id, '_cral_pren_importo_totale', true );
+                    $gp_biglietti   = (int) get_post_meta( $pren_esistente_id, '_cral_pren_totale_biglietti', true );
+                    $gp_note        = (string) get_post_meta( $pren_esistente_id, '_cral_pren_note', true );
+                    $gp_partecipanti = carbon_get_post_meta( $pren_esistente_id, 'cral_partecipanti' );
+                    $gp_data_fmt    = $gp_data ? wp_date( 'd/m/Y', strtotime( $gp_data ) ) : '—';
+                    $stati_label    = array(
+                        'in_attesa'  => 'In attesa di conferma',
+                        'confermata' => 'Confermata',
+                        'annullata'  => 'Annullata',
+                    );
+                    $nonce_annulla  = wp_create_nonce( 'cral_annulla_scheda_nonce' );
+                    ?>
                     <div class="cral-scheda__gia-prenotato">
                         <p class="cral-scheda__msg cral-scheda__msg--success">&#10003; Sei già iscritto a questo evento.</p>
-                        <?php
-                        // Riepilogo prenotazione esistente.
-                        $pren_stato    = get_post_meta( $pren_esistente_id, '_cral_pren_stato', true );
-                        $pren_importo  = (float) get_post_meta( $pren_esistente_id, '_cral_pren_importo_totale', true );
-                        $pren_biglietti = (int) get_post_meta( $pren_esistente_id, '_cral_pren_totale_biglietti', true );
-                        $stati_label = array(
-                            'in_attesa'  => 'In attesa di conferma',
-                            'confermata' => 'Confermata',
-                            'annullata'  => 'Annullata',
-                        );
-                        ?>
+
                         <div class="cral-scheda__riepilogo">
-                            <div class="cral-scheda__riepilogo-row"><span>Stato prenotazione</span><strong><?php echo esc_html( $stati_label[ $pren_stato ] ?? $pren_stato ); ?></strong></div>
-                            <div class="cral-scheda__riepilogo-row"><span>Biglietti</span><strong><?php echo esc_html( $pren_biglietti ); ?></strong></div>
-                            <div class="cral-scheda__riepilogo-row"><span>Importo totale</span><strong><?php echo wp_kses_post( $fmt_euro( $pren_importo ) ); ?></strong></div>
+                            <div class="cral-scheda__riepilogo-row cral-scheda__riepilogo-row--head">
+                                <span>Riepilogo prenotazione</span><strong></strong>
+                            </div>
+                            <div class="cral-scheda__riepilogo-row">
+                                <span>Data prenotazione</span>
+                                <strong><?php echo esc_html( $gp_data_fmt ); ?></strong>
+                            </div>
+                            <div class="cral-scheda__riepilogo-row">
+                                <span>Stato</span>
+                                <strong><?php echo esc_html( $stati_label[ $gp_stato ] ?? $gp_stato ); ?></strong>
+                            </div>
+                            <div class="cral-scheda__riepilogo-row">
+                                <span>Prezzo biglietto</span>
+                                <strong><?php echo wp_kses_post( $fmt_euro( $prezzo_base ) ); ?></strong>
+                            </div>
+                            <div class="cral-scheda__riepilogo-row">
+                                <span>Biglietti acquistati</span>
+                                <strong><?php echo esc_html( $gp_biglietti ); ?></strong>
+                            </div>
+                            <?php
+                            $gp_acc_list = is_array( $gp_partecipanti ) ? array_slice( $gp_partecipanti, 1 ) : array();
+                            if ( ! empty( $gp_acc_list ) ) : ?>
+                            <div class="cral-scheda__riepilogo-row cral-scheda__riepilogo-row--sub-head">
+                                <span><em>Accompagnatori</em></span><strong></strong>
+                            </div>
+                            <?php foreach ( $gp_acc_list as $gp_acc ) :
+                                $gp_acc_nome   = trim( ( $gp_acc['partecipante_nome'] ?? '' ) . ' ' . ( $gp_acc['partecipante_cognome'] ?? '' ) );
+                                $gp_acc_tipo   = $gp_acc['partecipante_tipologia'] ?? '';
+                                $gp_acc_prezzo = (float) ( $gp_acc['partecipante_prezzo'] ?? 0 );
+                            ?>
+                            <div class="cral-scheda__riepilogo-row cral-scheda__riepilogo-row--acc">
+                                <span class="cral-scheda__acc-nome-wrap">
+                                    <span><?php echo esc_html( $gp_acc_nome ); ?></span>
+                                    <?php if ( $gp_acc_tipo ) : ?>
+                                    <em class="cral-scheda__acc-tipo"><?php echo esc_html( $gp_acc_tipo ); ?></em>
+                                    <?php endif; ?>
+                                </span>
+                                <strong><?php echo wp_kses_post( $fmt_euro( $gp_acc_prezzo ) ); ?></strong>
+                            </div>
+                            <?php endforeach; ?>
+                            <?php endif; ?>
+                            <div class="cral-scheda__riepilogo-row cral-scheda__riepilogo-row--total">
+                                <span>Totale pagato</span>
+                                <strong><?php echo wp_kses_post( $fmt_euro( $gp_importo ) ); ?></strong>
+                            </div>
+                            <?php if ( $gp_note ) : ?>
+                            <div class="cral-scheda__note-block">
+                                <p class="cral-scheda__note-label">Note</p>
+                                <div class="cral-scheda__note-body" data-cral-note>
+                                    <p class="cral-scheda__note-text"><?php echo nl2br( esc_html( $gp_note ) ); ?></p>
+                                </div>
+                            </div>
+                            <?php endif; ?>
                         </div>
+
+                        <!-- Annulla prenotazione -->
+                        <?php
+                        $deadline_raw  = get_post_meta( $evento_id, '_cral_evento_data_iscrizione', true );
+                        $deadline_ts   = $deadline_raw ? strtotime( (string) $deadline_raw ) : 0;
+                        $deadline_fmt  = $deadline_ts ? wp_date( 'd/m/Y', $deadline_ts ) : '';
+                        $scaduto       = $deadline_ts && $deadline_ts < time();
+                        ?>
+                        <div class="cral-scheda__annulla-wrap" id="cral-annulla-wrap-<?php echo esc_attr( $evento_id ); ?>">
+                            <?php if ( $scaduto ) : ?>
+                                <p class="cral-scheda__annulla-scaduto">
+                                    Non puoi più annullare la prenotazione.
+                                    <?php if ( $deadline_fmt ) : ?>
+                                    Potevi annullare la prenotazione entro il <strong><?php echo esc_html( $deadline_fmt ); ?></strong>.
+                                    <?php endif; ?>
+                                </p>
+                                <button
+                                    type="button"
+                                    class="cral-scheda__btn cral-scheda__btn--annulla"
+                                    disabled
+                                >
+                                    Annulla prenotazione
+                                </button>
+                            <?php else : ?>
+                                <?php if ( $deadline_fmt ) : ?>
+                                <p class="cral-scheda__annulla-deadline">
+                                    Puoi annullare la tua prenotazione entro il <strong><?php echo esc_html( $deadline_fmt ); ?></strong>.
+                                </p>
+                                <?php endif; ?>
+                                <div class="cral-scheda__feedback" id="cral-annulla-feedback-<?php echo esc_attr( $evento_id ); ?>" style="display:none;"></div>
+                                <button
+                                    type="button"
+                                    class="cral-scheda__btn cral-scheda__btn--annulla"
+                                    id="cral-annulla-btn-<?php echo esc_attr( $evento_id ); ?>"
+                                    data-pren-id="<?php echo esc_attr( $pren_esistente_id ); ?>"
+                                    data-nonce="<?php echo esc_attr( $nonce_annulla ); ?>"
+                                    data-ajax="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>"
+                                >
+                                    Annulla prenotazione
+                                </button>
+                            <?php endif; ?>
+                        </div>
+
+                        <script>
+                        (function(){
+                            const btn      = document.getElementById('cral-annulla-btn-<?php echo esc_js( (string) $evento_id ); ?>');
+                            const feedback = document.getElementById('cral-annulla-feedback-<?php echo esc_js( (string) $evento_id ); ?>');
+                            if (!btn) return;
+                            btn.addEventListener('click', function() {
+                                if (!window.confirm('Sei sicuro di voler annullare la prenotazione? I posti verranno ripristinati e potrai riprenotarti.')) return;
+                                btn.disabled    = true;
+                                btn.textContent = 'Annullamento in corso…';
+                                fetch(btn.dataset.ajax, {
+                                    method: 'POST',
+                                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                                    body: new URLSearchParams({
+                                        action:   'cral_annulla_scheda',
+                                        nonce:    btn.dataset.nonce,
+                                        pren_id:  btn.dataset.prenId,
+                                    })
+                                })
+                                .then(r => r.json())
+                                .then(function(res) {
+                                    if (res.success) {
+                                        window.location.reload();
+                                    } else {
+                                        feedback.textContent   = res.data?.message || 'Errore durante l\'annullamento.';
+                                        feedback.className     = 'cral-scheda__feedback cral-scheda__feedback--error';
+                                        feedback.style.display = 'block';
+                                        btn.disabled    = false;
+                                        btn.textContent = 'Annulla prenotazione';
+                                    }
+                                })
+                                .catch(function() {
+                                    feedback.textContent   = 'Errore di connessione. Riprova.';
+                                    feedback.className     = 'cral-scheda__feedback cral-scheda__feedback--error';
+                                    feedback.style.display = 'block';
+                                    btn.disabled    = false;
+                                    btn.textContent = 'Annulla prenotazione';
+                                });
+                            });
+                        })();
+                        </script>
                     </div>
 
                 <?php elseif ( ! $socio_id ) : ?>
@@ -275,6 +541,32 @@ class Evento_Scheda {
             </div><!-- /.cral-scheda__prenota -->
 
         </div><!-- /.cral-scheda -->
+        <script>
+        (function(){
+            const MAX_H = 60; // px oltre il quale appare "Leggi di più"
+            document.querySelectorAll('[data-cral-note]').forEach(function(body) {
+                const text = body.querySelector('.cral-scheda__note-text');
+                if (!text || text.scrollHeight <= MAX_H) return;
+
+                // Aggiunge fade e pulsante.
+                const fade   = document.createElement('div');
+                fade.className = 'cral-scheda__note-fade';
+                body.appendChild(fade);
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'cral-scheda__note-toggle';
+                btn.textContent = 'Leggi di più';
+                body.parentElement.appendChild(btn);
+
+                btn.addEventListener('click', function() {
+                    const expanded = body.classList.toggle('is-expanded');
+                    fade.style.display = expanded ? 'none' : '';
+                    btn.textContent    = expanded ? 'Leggi meno' : 'Leggi di più';
+                });
+            });
+        })();
+        </script>
 
         <?php if ( $is_open && ! $gia_prenotato && $socio_id ) : ?>
         <script>
@@ -344,6 +636,10 @@ class Evento_Scheda {
                 }).join('');
 
                 row.innerHTML = [
+                    '<div class="cral-scheda__acc-header">',
+                    '  <span class="cral-scheda__acc-num">Accompagnatore ' + (idx + 1) + '</span>',
+                    '  <button type="button" class="cral-scheda__btn cral-scheda__btn--remove" aria-label="Rimuovi accompagnatore">&#10005; Rimuovi</button>',
+                    '</div>',
                     '<div class="cral-scheda__acc-fields">',
                     '  <div class="cral-scheda__field cral-scheda__field--half">',
                     '    <label class="cral-scheda__label">Nome</label>',
@@ -356,9 +652,6 @@ class Evento_Scheda {
                     '  <div class="cral-scheda__field cral-scheda__field--select">',
                     '    <label class="cral-scheda__label">Tipologia</label>',
                     '    <select class="cral-scheda__select" name="accompagnatori[' + idx + '][tipologia]" required>' + opts + '</select>',
-                    '  </div>',
-                    '  <div class="cral-scheda__field cral-scheda__field--remove">',
-                    '    <button type="button" class="cral-scheda__btn cral-scheda__btn--remove" aria-label="Rimuovi">&#10005;</button>',
                     '  </div>',
                     '</div>',
                 ].join('');
@@ -467,6 +760,79 @@ class Evento_Scheda {
         <?php endif; ?>
         <?php
         return ob_get_clean();
+    }
+
+    /**
+     * Handler AJAX annullamento prenotazione da frontend scheda.
+     */
+    public function handle_annulla() {
+        global $wpdb;
+
+        $nonce = sanitize_text_field( wp_unslash( $_POST['nonce'] ?? '' ) );
+        if ( ! wp_verify_nonce( $nonce, 'cral_annulla_scheda_nonce' ) ) {
+            wp_send_json_error( array( 'message' => 'Richiesta non valida.' ) );
+        }
+
+        $auth     = new \GEvent\Auth();
+        $socio_id = $auth->get_current_socio();
+        if ( ! $socio_id ) {
+            wp_send_json_error( array( 'message' => 'Devi essere loggato.' ) );
+        }
+
+        $pren_id = absint( $_POST['pren_id'] ?? 0 );
+        if ( ! $pren_id || 'prenotazione' !== get_post_type( $pren_id ) ) {
+            wp_send_json_error( array( 'message' => 'Prenotazione non valida.' ) );
+        }
+
+        // Verifica che la prenotazione appartenga al socio loggato.
+        $owner = (int) get_post_meta( $pren_id, '_cral_pren_socio_id', true );
+        if ( $owner !== $socio_id ) {
+            wp_send_json_error( array( 'message' => 'Non sei autorizzato ad annullare questa prenotazione.' ) );
+        }
+
+        $stato = (string) get_post_meta( $pren_id, '_cral_pren_stato', true );
+        if ( 'annullata' === $stato ) {
+            wp_send_json_error( array( 'message' => 'La prenotazione è già annullata.' ) );
+        }
+
+        $evento_id = (int) get_post_meta( $pren_id, '_cral_pren_evento_id', true );
+
+        // Verifica deadline annullamento (data scadenza iscrizioni).
+        $deadline_raw = get_post_meta( $evento_id, '_cral_evento_data_iscrizione', true );
+        if ( $deadline_raw ) {
+            $deadline_ts = strtotime( (string) $deadline_raw );
+            if ( $deadline_ts && $deadline_ts < time() ) {
+                wp_send_json_error( array(
+                    'message' => 'Il termine per annullare la prenotazione è scaduto il ' . wp_date( 'd/m/Y', $deadline_ts ) . '.',
+                ) );
+            }
+        }
+        $totale_biglietti = (int) get_post_meta( $pren_id, '_cral_pren_totale_biglietti', true );
+
+        // Segna come annullata.
+        update_post_meta( $pren_id, '_cral_pren_stato', 'annullata' );
+
+        // Ripristina i posti sull'evento.
+        if ( $evento_id && $totale_biglietti > 0 ) {
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->postmeta}
+                     SET meta_value = CAST(meta_value AS UNSIGNED) + %d
+                     WHERE post_id = %d
+                     AND meta_key = '_cral_evento_posti_residui'",
+                    $totale_biglietti,
+                    $evento_id
+                )
+            );
+        }
+
+        Logger::log( 'annulla_scheda', 'Annullamento frontend prenotazione #' . $pren_id, array(
+            'socio_id'   => $socio_id,
+            'evento_id'  => $evento_id,
+            'biglietti'  => $totale_biglietti,
+        ) );
+
+        wp_send_json_success( array( 'message' => 'Prenotazione annullata correttamente.' ) );
     }
 
     /**

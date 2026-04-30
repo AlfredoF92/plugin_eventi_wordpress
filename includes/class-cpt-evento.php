@@ -104,6 +104,9 @@ class CPT_Evento {
                     ->set_required( true )
                     ->set_help_text( 'Data e ora di inizio evento.' ),
 
+                Field::make( 'date', 'cral_evento_data_apertura_iscrizioni', 'Data apertura iscrizioni' )
+                    ->set_help_text( 'Da quando i soci possono iscriversi. Se vuoto, le iscrizioni sono subito aperte.' ),
+
                 Field::make( 'date', 'cral_evento_data_iscrizione', 'Data scadenza iscrizioni' )
                     ->set_help_text( 'Ultimo giorno utile per iscriversi all\'evento.' ),
 
