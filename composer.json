@@ -1,0 +1,19 @@
+{
+    "name": "giollo/g-event",
+    "description": "Gestione prenotazioni eventi CRAL",
+    "type": "wordpress-plugin",
+    "require": {
+        "php": ">=8.0",
+        "firebase/php-jwt": "^6.0",
+        "tecnickcom/tcpdf": "^6.6",
+        "htmlburger/carbon-fields": "^3.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "GEvent\\": "includes/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}

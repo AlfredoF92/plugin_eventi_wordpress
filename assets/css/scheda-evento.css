@@ -1,0 +1,381 @@
+/* =====================================================
+   CRAL – Scheda Evento Shortcode
+   ===================================================== */
+
+.cral-scheda {
+    --cral-primary:     #2563eb;
+    --cral-primary-dk:  #1d4ed8;
+    --cral-success:     #16a34a;
+    --cral-error:       #dc2626;
+    --cral-warning:     #d97706;
+    --cral-neutral:     #64748b;
+    --cral-bg:          #f8fafc;
+    --cral-border:      #e2e8f0;
+    --cral-radius:      10px;
+    --cral-shadow:      0 2px 12px rgba(0,0,0,.07);
+
+    font-family: inherit;
+    max-width: 720px;
+    margin: 0 auto;
+    color: #1e293b;
+}
+
+/* ── INFO SECTION ──────────────────────────────────── */
+.cral-scheda__info {
+    background: var(--cral-bg);
+    border: 1px solid var(--cral-border);
+    border-radius: var(--cral-radius);
+    padding: 28px 32px;
+    margin-bottom: 0;
+}
+
+/* Badge stato */
+.cral-scheda__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    border-radius: 20px;
+    padding: 4px 14px;
+    margin-bottom: 20px;
+}
+.cral-scheda__badge--aperto   { background: #dcfce7; color: #166534; }
+.cral-scheda__badge--soldout  { background: #fee2e2; color: #991b1b; }
+.cral-scheda__badge--concluso { background: #e2e8f0; color: #475569; }
+.cral-scheda__badge--annullato{ background: #fef9c3; color: #92400e; }
+
+/* Griglia meta */
+.cral-scheda__meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.cral-scheda__meta-item {
+    background: #fff;
+    border: 1px solid var(--cral-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.cral-scheda__meta-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+}
+.cral-scheda__meta-label {
+    font-size: .72rem;
+    color: var(--cral-neutral);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-weight: 600;
+}
+.cral-scheda__meta-value {
+    font-size: .95rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+/* Prezzi */
+.cral-scheda__prezzi {
+    border-top: 1px solid var(--cral-border);
+    padding-top: 18px;
+}
+.cral-scheda__prezzi-title {
+    font-size: .8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--cral-neutral);
+    margin: 0 0 12px;
+}
+.cral-scheda__prezzi-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.cral-scheda__prezzo-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #fff;
+    border: 1px solid var(--cral-border);
+    font-size: .9rem;
+}
+.cral-scheda__prezzo-row--base {
+    border-color: var(--cral-primary);
+    background: #eff6ff;
+}
+.cral-scheda__prezzo-label { color: #334155; }
+.cral-scheda__prezzo-max   { font-size: .78rem; color: var(--cral-neutral); margin-left: 6px; font-style: normal; }
+.cral-scheda__prezzo-val   { font-weight: 700; color: #0f172a; white-space: nowrap; }
+.cral-scheda__no-acc       { font-size: .85rem; color: var(--cral-neutral); margin: 0; }
+
+/* ── DIVIDER ───────────────────────────────────────── */
+.cral-scheda__divider {
+    border: none;
+    border-top: 2px solid var(--cral-border);
+    margin: 0;
+}
+
+/* ── PRENOTA SECTION ───────────────────────────────── */
+.cral-scheda__prenota {
+    background: #fff;
+    border: 1px solid var(--cral-border);
+    border-top: none;
+    border-radius: 0 0 var(--cral-radius) var(--cral-radius);
+    padding: 28px 32px;
+}
+
+.cral-scheda__form-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 0 0 20px;
+    color: #0f172a;
+}
+
+/* ── MESSAGES ──────────────────────────────────────── */
+.cral-scheda__msg {
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: .9rem;
+    margin: 0 0 16px;
+}
+.cral-scheda__msg--success { background: #dcfce7; color: #166534; }
+.cral-scheda__msg--error   { background: #fee2e2; color: #991b1b; }
+.cral-scheda__msg--info    { background: #e0f2fe; color: #075985; }
+.cral-scheda__msg--soldout { background: #fee2e2; color: #991b1b; font-size: 1rem; }
+
+/* ── LOGIN PROMPT ──────────────────────────────────── */
+.cral-scheda__login-prompt {
+    text-align: center;
+    padding: 20px 0;
+}
+.cral-scheda__login-prompt p {
+    margin-bottom: 14px;
+    color: #475569;
+}
+
+/* ── SOCIO ROW ─────────────────────────────────────── */
+.cral-scheda__socio-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    font-size: .95rem;
+}
+.cral-scheda__socio-label  { font-weight: 600; color: #1e40af; }
+.cral-scheda__socio-prezzo { font-weight: 700; color: #1e40af; }
+
+/* ── FORM FIELDS ───────────────────────────────────── */
+.cral-scheda__field {
+    margin-bottom: 14px;
+}
+.cral-scheda__label {
+    display: block;
+    font-size: .8rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 5px;
+    letter-spacing: .03em;
+}
+.cral-scheda__input,
+.cral-scheda__select,
+.cral-scheda__textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--cral-border);
+    border-radius: 7px;
+    padding: 9px 13px;
+    font-size: .9rem;
+    font-family: inherit;
+    background: #fff;
+    color: #0f172a;
+    transition: border-color .15s, box-shadow .15s;
+}
+.cral-scheda__input:focus,
+.cral-scheda__select:focus,
+.cral-scheda__textarea:focus {
+    outline: none;
+    border-color: var(--cral-primary);
+    box-shadow: 0 0 0 3px rgba(37,99,235,.15);
+}
+.cral-scheda__textarea { resize: vertical; min-height: 64px; }
+
+/* ── ACCOMPAGNATORI ────────────────────────────────── */
+.cral-scheda__acc-section {
+    border: 1px dashed var(--cral-border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin-bottom: 18px;
+    background: var(--cral-bg);
+}
+.cral-scheda__acc-title {
+    font-size: .85rem;
+    font-weight: 700;
+    color: var(--cral-neutral);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin: 0 0 14px;
+}
+.cral-scheda__acc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+.cral-scheda__acc-row {
+    background: #fff;
+    border: 1px solid var(--cral-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+}
+.cral-scheda__acc-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.cral-scheda__field--half   { grid-column: span 1; margin-bottom: 0; }
+.cral-scheda__field--select { grid-column: 1 / 2;  margin-bottom: 0; }
+.cral-scheda__field--remove { grid-column: 2 / 3;  margin-bottom: 0; display: flex; align-items: flex-end; justify-content: flex-end; }
+
+@media (max-width: 500px) {
+    .cral-scheda__acc-fields { grid-template-columns: 1fr; }
+    .cral-scheda__field--half,
+    .cral-scheda__field--select,
+    .cral-scheda__field--remove { grid-column: span 1; }
+}
+
+/* ── TOTALE ────────────────────────────────────────── */
+.cral-scheda__totale {
+    font-size: 1rem;
+    color: #334155;
+    background: var(--cral-bg);
+    border: 1px solid var(--cral-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+.cral-scheda__totale strong { color: #0f172a; font-size: 1.1rem; }
+.cral-scheda__totale-sub    { font-size: .8rem; color: var(--cral-neutral); margin-left: 8px; }
+
+/* ── FEEDBACK ──────────────────────────────────────── */
+.cral-scheda__feedback {
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: .88rem;
+    margin-bottom: 14px;
+}
+.cral-scheda__feedback--error   { background: #fee2e2; color: #991b1b; }
+.cral-scheda__feedback--success { background: #dcfce7; color: #166534; }
+
+/* ── BUTTONS ───────────────────────────────────────── */
+.cral-scheda__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: .9rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background .15s, transform .1s, box-shadow .15s;
+    text-decoration: none;
+}
+.cral-scheda__btn--primary {
+    background: var(--cral-primary);
+    color: #fff;
+    width: 100%;
+    justify-content: center;
+    padding: 13px 20px;
+    font-size: .95rem;
+}
+.cral-scheda__btn--primary:hover  { background: var(--cral-primary-dk); box-shadow: 0 4px 12px rgba(37,99,235,.35); }
+.cral-scheda__btn--primary:active { transform: scale(.98); }
+.cral-scheda__btn--primary:disabled { background: #93c5fd; cursor: not-allowed; box-shadow: none; }
+
+.cral-scheda__btn--secondary {
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid var(--cral-border);
+}
+.cral-scheda__btn--secondary:hover { background: #e2e8f0; }
+
+.cral-scheda__btn--add {
+    background: transparent;
+    color: var(--cral-primary);
+    border: 1.5px dashed var(--cral-primary);
+    font-size: .85rem;
+    padding: 8px 16px;
+    width: 100%;
+    justify-content: center;
+}
+.cral-scheda__btn--add:hover { background: #eff6ff; }
+
+.cral-scheda__btn--remove {
+    background: #fee2e2;
+    color: #991b1b;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: .8rem;
+    cursor: pointer;
+}
+.cral-scheda__btn--remove:hover { background: #fecaca; }
+
+.cral-scheda__submit-wrap { margin-top: 6px; }
+
+/* ── RIEPILOGO ─────────────────────────────────────── */
+.cral-scheda__riepilogo {
+    background: var(--cral-bg);
+    border: 1px solid var(--cral-border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 14px 0;
+}
+.cral-scheda__riepilogo-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    font-size: .88rem;
+    border-bottom: 1px solid var(--cral-border);
+}
+.cral-scheda__riepilogo-row:last-child { border-bottom: none; }
+.cral-scheda__riepilogo-row--head {
+    background: #f1f5f9;
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--cral-neutral);
+    font-weight: 700;
+}
+.cral-scheda__riepilogo-row--total {
+    background: #eff6ff;
+    font-weight: 700;
+    font-size: .95rem;
+    color: #1e40af;
+}
+
+/* ── CONFERMA ──────────────────────────────────────── */
+.cral-scheda__conferma-inner { padding: 4px 0; }
+.cral-scheda__conferma-note  { font-size: .85rem; color: var(--cral-neutral); margin-top: 8px; }
+
+/* ── RESPONSIVE ────────────────────────────────────── */
+@media (max-width: 600px) {
+    .cral-scheda__info,
+    .cral-scheda__prenota { padding: 20px 16px; }
+    .cral-scheda__meta-grid { grid-template-columns: 1fr; }
+}
