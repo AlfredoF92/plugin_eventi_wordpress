@@ -224,12 +224,15 @@ if ( class_exists( '\Elementor\Core\DynamicTags\Tag' ) ) {
                     'options' => array(
                         'id'                       => 'ID evento',
                         'titolo'                   => 'Titolo',
-                        'estratto'                 => 'Estratto (descrizione breve)',
+                        'descrizione_breve'        => 'Descrizione breve (campo evento)',
+                        'riassunto'                => 'Riassunto',
+                        'estratto'                 => 'Riassunto (legacy)',
                         'data'                     => 'Data evento',
                         'data_iscrizione'          => 'Data scadenza iscrizioni',
                         'luogo'                    => 'Luogo',
                         'stato'                    => 'Stato',
-                        'descrizione'              => 'Descrizione',
+                        'descrizione_lunga'        => 'Descrizione lunga',
+                        'descrizione'              => 'Descrizione lunga (legacy)',
                         'prezzo_biglietto'         => 'Prezzo biglietto',
                         'posti_totali'             => 'Posti totali',
                         'posti_residui'            => 'Posti disponibili',
@@ -331,6 +334,11 @@ if ( class_exists( '\Elementor\Core\DynamicTags\Tag' ) ) {
                 case 'estratto':
                     $post = get_post( $event_id );
                     return $post ? wp_strip_all_tags( $post->post_excerpt ) : '';
+                case 'descrizione_breve':
+                    return (string) wp_strip_all_tags( (string) $this->get_meta( $event_id, '_cral_evento_descrizione' ) );
+                case 'riassunto':
+                    $post = get_post( $event_id );
+                    return $post ? wp_strip_all_tags( $post->post_excerpt ) : '';
                 case 'data':
                     return $this->format_event_date( $this->get_meta( $event_id, '_cral_evento_data' ), $date_format );
                 case 'data_iscrizione':
@@ -343,8 +351,13 @@ if ( class_exists( '\Elementor\Core\DynamicTags\Tag' ) ) {
                     return (string) $this->get_meta( $event_id, '_cral_evento_luogo' );
                 case 'stato':
                     return (string) $this->get_meta( $event_id, '_cral_evento_stato' );
+                case 'descrizione_lunga':
+                    $post = get_post( $event_id );
+                    return $post ? wp_strip_all_tags( $post->post_content ) : '';
                 case 'descrizione':
-                    return (string) wp_strip_all_tags( (string) $this->get_meta( $event_id, '_cral_evento_descrizione' ) );
+                    // Compatibilita retroattiva: "descrizione" ora punta al contenuto lungo del post evento.
+                    $post = get_post( $event_id );
+                    return $post ? wp_strip_all_tags( $post->post_content ) : '';
                 case 'prezzo_biglietto':
                     return $this->format_money( (float) $this->get_meta( $event_id, '_cral_evento_prezzo_base' ), $money_format );
                 case 'posti_totali':

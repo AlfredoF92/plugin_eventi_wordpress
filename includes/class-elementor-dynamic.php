@@ -322,7 +322,8 @@ class Elementor_Dynamic {
         );
 
         $event_id     = $this->get_event_id( $atts );
-        $descrizione  = (string) $this->get_meta( $event_id, '_cral_evento_descrizione', '' );
+        $post         = $event_id > 0 ? get_post( $event_id ) : null;
+        $descrizione  = $post ? (string) $post->post_content : '';
         $plain_output = 'yes' === strtolower( (string) $atts['plain'] );
 
         return $plain_output ? wp_strip_all_tags( $descrizione ) : wp_kses_post( $descrizione );
