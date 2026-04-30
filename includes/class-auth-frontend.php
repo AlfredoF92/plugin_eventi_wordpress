@@ -18,6 +18,7 @@ class Auth_Frontend {
     public function init() {
         add_shortcode( 'cral_login', array( $this, 'render_login' ) );
         add_shortcode( 'cral_logout', array( $this, 'render_logout' ) );
+        add_shortcode( 'cral_header_accesso', array( $this, 'render_header_accesso' ) );
     }
 
     /**
@@ -47,6 +48,7 @@ class Auth_Frontend {
                         name="socio_id"
                         required
                         autocomplete="username"
+                        value="D74007"
                     >
                 </div>
                 <div class="cral-form__field">
@@ -57,6 +59,7 @@ class Auth_Frontend {
                         name="password"
                         required
                         autocomplete="current-password"
+                        value="Password123!"
                     >
                 </div>
                 <div id="cral-login-msg" class="cral-form__msg" style="display:none;"></div>
@@ -168,5 +171,31 @@ class Auth_Frontend {
         </script>
         <?php
         return ob_get_clean();
+    }
+
+    /**
+     * Renderizza link accesso da usare nell'header.
+     *
+     * @return string
+     */
+    public function render_header_accesso() {
+        $auth         = new \GEvent\Auth();
+        $socio_id     = $auth->get_current_socio();
+        $login_url    = get_permalink( get_option( 'cral_pagina_login' ) );
+        $area_soci_url = get_permalink( get_option( 'cral_pagina_area_soci' ) );
+
+        if ( $socio_id ) {
+            $nome    = (string) get_post_meta( $socio_id, '_cral_nome', true );
+            $cognome = (string) get_post_meta( $socio_id, '_cral_cognome', true );
+            $label   = trim( $nome . ' ' . $cognome );
+
+            if ( '' === $label ) {
+                $label = 'Socio';
+            }
+
+            return '<a class="cral-header-accesso cral-header-accesso--logged" href="' . esc_url( $area_soci_url ) . '">Ciao, ' . esc_html( $label ) . '</a>';
+        }
+
+        return '<a class="cral-header-accesso cral-header-accesso--guest" href="' . esc_url( $login_url ) . '">Accedi alla tua area personale</a>';
     }
 }

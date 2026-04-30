@@ -44,6 +44,190 @@ class Elementor_Dynamic {
         add_shortcode( 'cral_evento_categoria', array( $this, 'evento_categoria' ) );
         add_shortcode( 'cral_evento_categoria_slug', array( $this, 'evento_categoria_slug' ) );
         add_shortcode( 'cral_evento_categoria_link', array( $this, 'evento_categoria_link' ) );
+
+        // Hook query Elementor: loop eventi prenotati dal socio loggato.
+        add_action( 'elementor/query/cral_eventi_prenotati', array( $this, 'query_eventi_prenotati' ) );
+
+        // Hook query Elementor: loop tutti gli eventi futuri (pubblici).
+        add_action( 'elementor/query/cral_eventi_futuri', array( $this, 'query_eventi_futuri' ) );
+
+        // Hook query Elementor: loop eventi passati prenotati dal socio loggato.
+        add_action( 'elementor/query/cral_eventi_passati', array( $this, 'query_eventi_passati' ) );
+    }
+
+    /**
+     * Modifica la WP_Query del loop Elementor per mostrare solo
+     * gli eventi futuri prenotati dal socio attualmente loggato.
+     *
+     * Da usare nel campo "ID Query" del Loop Grid con valore: cral_eventi_prenotati
+     * Usa SQL diretto per evitare WP_Query annidate che esauriscono la memoria.
+     *
+     * @param \WP_Query $query Query Elementor da modificare.
+     */
+    public function query_eventi_prenotati( $query ) {
+        global $wpdb;
+
+        $auth     = new \GEvent\Auth();
+        $socio_id = $auth->get_current_socio();
+
+        if ( ! $socio_id ) {
+            $query->set( 'post__in', array( 0 ) );
+            return;
+        }
+
+        // Cache statica per non rieseguire la query nella stessa richiesta.
+        static $cache = array();
+        if ( isset( $cache[ $socio_id ] ) ) {
+            $evento_ids = $cache[ $socio_id ];
+        } else {
+            $oggi = gmdate( 'Y-m-d H:i:s' );
+
+            // SQL diretto: recupera gli ID evento dalle prenotazioni attive
+            // del socio con data evento futura — tutto in una sola query.
+            // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared
+            $evento_ids = $wpdb->get_col(
+                $wpdb->prepare(
+                    "SELECT DISTINCT ev_id.meta_value
+                     FROM {$wpdb->posts} p
+                     INNER JOIN {$wpdb->postmeta} socio_m  ON socio_m.post_id  = p.ID AND socio_m.meta_key  = '_cral_pren_socio_id'
+                     INNER JOIN {$wpdb->postmeta} stato_m  ON stato_m.post_id  = p.ID AND stato_m.meta_key  = '_cral_pren_stato'
+                     INNER JOIN {$wpdb->postmeta} ev_id    ON ev_id.post_id    = p.ID AND ev_id.meta_key    = '_cral_pren_evento_id'
+                     INNER JOIN {$wpdb->postmeta} ev_data  ON ev_data.post_id  = CAST(ev_id.meta_value AS UNSIGNED) AND ev_data.meta_key = '_cral_evento_data'
+                     WHERE p.post_type   = 'prenotazione'
+                       AND p.post_status = 'publish'
+                       AND socio_m.meta_value = %d
+                       AND stato_m.meta_value IN ('confermata','in_attesa')
+                       AND ev_data.meta_value >= %s",
+                    $socio_id,
+                    $oggi
+                )
+            );
+            // phpcs:enable
+
+            $evento_ids = array_map( 'intval', (array) $evento_ids );
+            $evento_ids = array_filter( $evento_ids );
+
+            $cache[ $socio_id ] = $evento_ids;
+        }
+
+        if ( empty( $evento_ids ) ) {
+            $query->set( 'post__in', array( 0 ) );
+            return;
+        }
+
+        $query->set( 'post_type', 'evento' );
+        $query->set( 'post__in', $evento_ids );
+        $query->set( 'meta_query', array(
+            'data_evento_clause' => array(
+                'key'     => '_cral_evento_data',
+                'value'   => gmdate( 'Y-m-d H:i:s' ),
+                'compare' => '>=',
+                'type'    => 'DATETIME',
+            ),
+        ) );
+        // Ordina per la clause nominata — garantisce ASC anche con post__in.
+        $query->set( 'orderby', array( 'data_evento_clause' => 'ASC' ) );
+    }
+
+    /**
+     * Modifica la WP_Query del loop Elementor per mostrare
+     * tutti gli eventi futuri aperti (non annullati, non conclusi).
+     *
+     * Da usare nel campo "ID Query" del Loop Grid con valore: cral_eventi_futuri
+     *
+     * @param \WP_Query $query Query Elementor da modificare.
+     */
+    public function query_eventi_futuri( $query ) {
+        $oggi = gmdate( 'Y-m-d H:i:s' );
+
+        $query->set( 'post_type', 'evento' );
+        $query->set( 'orderby', 'meta_value' );
+        $query->set( 'meta_key', '_cral_evento_data' );
+        $query->set( 'order', 'ASC' );
+        $query->set( 'meta_query', array(
+            'relation' => 'AND',
+            array(
+                'key'     => '_cral_evento_data',
+                'value'   => $oggi,
+                'compare' => '>=',
+                'type'    => 'DATETIME',
+            ),
+            array(
+                'key'     => '_cral_evento_stato',
+                'value'   => array( 'annullato', 'concluso' ),
+                'compare' => 'NOT IN',
+            ),
+        ) );
+    }
+
+    /**
+     * Modifica la WP_Query del loop Elementor per mostrare solo
+     * gli eventi passati prenotati dal socio attualmente loggato.
+     *
+     * Da usare nel campo "ID Query" del Loop Grid con valore: cral_eventi_passati
+     * Usa SQL diretto per evitare WP_Query annidate che esauriscono la memoria.
+     *
+     * @param \WP_Query $query Query Elementor da modificare.
+     */
+    public function query_eventi_passati( $query ) {
+        global $wpdb;
+
+        $auth     = new \GEvent\Auth();
+        $socio_id = $auth->get_current_socio();
+
+        if ( ! $socio_id ) {
+            $query->set( 'post__in', array( 0 ) );
+            return;
+        }
+
+        // Cache statica per non rieseguire nella stessa richiesta.
+        static $cache = array();
+        if ( isset( $cache[ $socio_id ] ) ) {
+            $evento_ids = $cache[ $socio_id ];
+        } else {
+            $oggi = gmdate( 'Y-m-d H:i:s' );
+
+            $evento_ids = $wpdb->get_col(
+                $wpdb->prepare(
+                    "SELECT DISTINCT ev_id.meta_value
+                     FROM {$wpdb->posts} p
+                     INNER JOIN {$wpdb->postmeta} socio_m ON socio_m.post_id = p.ID AND socio_m.meta_key = '_cral_pren_socio_id'
+                     INNER JOIN {$wpdb->postmeta} stato_m ON stato_m.post_id = p.ID AND stato_m.meta_key = '_cral_pren_stato'
+                     INNER JOIN {$wpdb->postmeta} ev_id   ON ev_id.post_id   = p.ID AND ev_id.meta_key   = '_cral_pren_evento_id'
+                     INNER JOIN {$wpdb->postmeta} ev_data ON ev_data.post_id = CAST(ev_id.meta_value AS UNSIGNED) AND ev_data.meta_key = '_cral_evento_data'
+                     WHERE p.post_type   = 'prenotazione'
+                       AND p.post_status = 'publish'
+                       AND socio_m.meta_value = %d
+                       AND stato_m.meta_value IN ('confermata','in_attesa')
+                       AND ev_data.meta_value < %s",
+                    $socio_id,
+                    $oggi
+                )
+            );
+
+            $evento_ids = array_map( 'intval', (array) $evento_ids );
+            $evento_ids = array_filter( $evento_ids );
+
+            $cache[ $socio_id ] = $evento_ids;
+        }
+
+        if ( empty( $evento_ids ) ) {
+            $query->set( 'post__in', array( 0 ) );
+            return;
+        }
+
+        $query->set( 'post_type', 'evento' );
+        $query->set( 'post__in', $evento_ids );
+        $query->set( 'meta_query', array(
+            'data_evento_clause' => array(
+                'key'     => '_cral_evento_data',
+                'value'   => gmdate( 'Y-m-d H:i:s' ),
+                'compare' => '<',
+                'type'    => 'DATETIME',
+            ),
+        ) );
+        // Dal più recente al più vecchio.
+        $query->set( 'orderby', array( 'data_evento_clause' => 'DESC' ) );
     }
 
     private function get_event_id( $atts ) {
