@@ -29,6 +29,7 @@ class CPT_Socio
         // Fase 1.3 — Lista admin personalizzata.
         add_filter('manage_socio_posts_columns', array($this, 'set_columns'));
         add_action('manage_socio_posts_custom_column', array($this, 'render_column'), 10, 2);
+        add_action('admin_menu', array($this, 'register_scheda_menu'));
         add_filter('manage_edit-socio_sortable_columns', array($this, 'set_sortable_columns'));
         add_action('pre_get_posts', array($this, 'handle_sorting'));
         add_action('restrict_manage_posts', array($this, 'render_search_box'));
@@ -135,6 +136,21 @@ class CPT_Socio
     }
 
     /**
+     * Registra la sottopagina nascosta per la scheda del singolo socio.
+     */
+    public function register_scheda_menu()
+    {
+        add_submenu_page(
+            null,
+            'Scheda Socio',
+            'Scheda Socio',
+            'manage_options',
+            'g-event-scheda-socio',
+            array( $this, 'render_scheda_socio' )
+        );
+    }
+
+    /**
      * Definisce le colonne della lista admin del CPT socio.
      *
      * @param array $columns Colonne predefinite di WordPress.
@@ -150,6 +166,7 @@ class CPT_Socio
             'cral_nome'     => 'Nome',
             'cral_email'    => 'Email',
             'date'          => 'Data inserimento',
+            'cral_scheda'   => 'Scheda',
         );
     }
 
@@ -174,6 +191,13 @@ class CPT_Socio
             case 'cral_email':
                 $email = get_post_meta($post_id, '_cral_email', true);
                 echo '<a href="mailto:' . esc_attr($email) . '">' . esc_html($email) . '</a>';
+                break;
+            case 'cral_scheda':
+                $url = add_query_arg(
+                    array( 'page' => 'g-event-scheda-socio', 'socio_id' => $post_id ),
+                    admin_url( 'admin.php' )
+                );
+                echo '<a href="' . esc_url( $url ) . '" class="button button-small">&#128100; Vedi scheda</a>';
                 break;
         }
     }
@@ -429,12 +453,252 @@ class CPT_Socio
         </script>
     <?php
     }
-/**
- * Aggiunge il pulsante Importa da CSV sopra la lista soci.
- *
- * @param string $which Posizione: 'top' o 'bottom'.
- */
-public function render_import_button( $which ) {
+    /**
+     * Renderizza la pagina di scheda del singolo socio con statistiche e prenotazioni.
+     */
+    public function render_scheda_socio()
+    {
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'Accesso negato.' );
+        }
+
+        $socio_post_id = isset( $_GET['socio_id'] ) ? (int) $_GET['socio_id'] : 0;
+        if ( ! $socio_post_id || 'socio' !== get_post_type( $socio_post_id ) ) {
+            echo '<div class="wrap"><p>Socio non valido.</p></div>';
+            return;
+        }
+
+        global $wpdb;
+
+        $socio_id_str = (string) get_post_meta( $socio_post_id, '_cral_socio_id', true );
+        $nome         = (string) get_post_meta( $socio_post_id, '_cral_nome', true );
+        $cognome      = (string) get_post_meta( $socio_post_id, '_cral_cognome', true );
+        $email        = (string) get_post_meta( $socio_post_id, '_cral_email', true );
+        $telefono     = (string) get_post_meta( $socio_post_id, '_cral_telefono', true );
+
+        $back_url = admin_url( 'edit.php?post_type=socio' );
+        $edit_url = get_edit_post_link( $socio_post_id );
+
+        // ── Tutte le prenotazioni del socio (qualsiasi stato) ──────────────────
+        $prenotazioni = get_posts( array(
+            'post_type'      => 'prenotazione',
+            'posts_per_page' => -1,
+            'meta_query'     => array(
+                array( 'key' => '_cral_pren_socio_id', 'value' => $socio_post_id ),
+            ),
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        ) );
+
+        // ── Helper: legge i partecipanti Carbon Fields di una prenotazione ────
+        $get_partecipanti = static function( $pren_id ) use ( $wpdb ) {
+            $rows = $wpdb->get_results( $wpdb->prepare(
+                "SELECT meta_key, meta_value FROM {$wpdb->postmeta}
+                 WHERE post_id = %d AND meta_key LIKE %s",
+                $pren_id, '_cral_partecipanti|%'
+            ) );
+            $partecipanti = array();
+            foreach ( $rows as $row ) {
+                // pattern: _cral_partecipanti|partecipante_FIELD|INDEX|0|value
+                if ( preg_match( '/_cral_partecipanti\|partecipante_(\w+)\|(\d+)\|0\|value/', $row->meta_key, $m ) ) {
+                    $field = $m[1];
+                    $idx   = (int) $m[2];
+                    $partecipanti[ $idx ][ $field ] = $row->meta_value;
+                }
+            }
+            ksort( $partecipanti );
+            return $partecipanti;
+        };
+
+        // ── Statistiche ────────────────────────────────────────────────────────
+        $stat_biglietti_totali   = 0;
+        $stat_eventi_partecipati = 0;
+        $stat_eventi_futuri      = 0;
+        $stat_totale_speso       = 0.0;
+        $stat_speso_acc          = 0.0;
+        $stat_speso_proprio      = 0.0;
+        $now_ts                  = time();
+
+        foreach ( $prenotazioni as $pren ) {
+            $pren_stato = (string) get_post_meta( $pren->ID, '_cral_pren_stato', true );
+            if ( ! in_array( $pren_stato, array( 'confermata', 'in_attesa' ), true ) ) {
+                continue;
+            }
+
+            $ev_id   = (int) get_post_meta( $pren->ID, '_cral_pren_evento_id', true );
+            $ev_data = (string) get_post_meta( $ev_id, '_cral_evento_data', true );
+            $ev_ts   = $ev_data ? strtotime( $ev_data ) : 0;
+
+            $biglietti = max( 1, (int) get_post_meta( $pren->ID, '_cral_pren_totale_biglietti', true ) );
+            $totale    = (float) get_post_meta( $pren->ID, '_cral_pren_importo_totale', true );
+
+            // Prezzo del solo biglietto del socio (partecipante indice 0).
+            $parts         = $get_partecipanti( $pren->ID );
+            $prezzo_socio  = isset( $parts[0]['prezzo'] ) ? (float) $parts[0]['prezzo'] : 0.0;
+
+            $stat_biglietti_totali += $biglietti;
+            $stat_totale_speso     += $totale;
+            $stat_speso_proprio    += $prezzo_socio;
+
+            if ( $ev_ts > 0 && $ev_ts < $now_ts ) {
+                $stat_eventi_partecipati++;
+            } else {
+                $stat_eventi_futuri++;
+            }
+        }
+        $stat_speso_acc = max( 0.0, $stat_totale_speso - $stat_speso_proprio );
+
+        $fmt_euro = static function( $v ) {
+            return '€ ' . number_format( (float) $v, 2, ',', '.' );
+        };
+
+        $stati_label = array(
+            'confermata' => '<span style="color:#46b450;font-weight:600;">Confermata</span>',
+            'in_attesa'  => '<span style="color:#f56e28;font-weight:600;">In attesa</span>',
+            'annullata'  => '<span style="color:#dc3232;font-weight:600;">Annullata</span>',
+        );
+
+        ?>
+        <div class="wrap cral-scheda-socio-wrap">
+
+            <!-- Breadcrumb -->
+            <p style="margin-bottom:4px;">
+                <a href="<?php echo esc_url( $back_url ); ?>">&#8592; Torna alla lista soci</a>
+            </p>
+
+            <h1 class="wp-heading-inline">
+                &#128100; <?php echo esc_html( $cognome . ' ' . $nome ); ?>
+                <span style="font-size:.6em; color:#666; font-weight:400;">(<?php echo esc_html( $socio_id_str ); ?>)</span>
+            </h1>
+            <a href="<?php echo esc_url( $edit_url ); ?>" class="page-title-action">Modifica socio</a>
+            <hr class="wp-header-end">
+
+            <!-- Dati anagrafici rapidi -->
+            <div class="cral-ss-meta">
+                <?php if ( $email ) : ?>
+                <span>&#9993; <a href="mailto:<?php echo esc_attr( $email ); ?>"><?php echo esc_html( $email ); ?></a></span>
+                <?php endif; ?>
+                <?php if ( $telefono ) : ?>
+                <span>&#128222; <?php echo esc_html( $telefono ); ?></span>
+                <?php endif; ?>
+            </div>
+
+            <!-- ── STATISTICHE ─────────────────────────────────────────────── -->
+            <div class="cral-ss-stats">
+                <div class="cral-ss-stat">
+                    <div class="cral-ss-stat__value"><?php echo esc_html( $stat_biglietti_totali ); ?></div>
+                    <div class="cral-ss-stat__label">Biglietti acquistati</div>
+                </div>
+                <div class="cral-ss-stat">
+                    <div class="cral-ss-stat__value"><?php echo esc_html( $stat_eventi_partecipati ); ?></div>
+                    <div class="cral-ss-stat__label">Eventi partecipati</div>
+                </div>
+                <div class="cral-ss-stat">
+                    <div class="cral-ss-stat__value"><?php echo esc_html( $stat_eventi_futuri ); ?></div>
+                    <div class="cral-ss-stat__label">Prenotazioni future</div>
+                </div>
+                <div class="cral-ss-stat cral-ss-stat--money">
+                    <div class="cral-ss-stat__value"><?php echo esc_html( $fmt_euro( $stat_totale_speso ) ); ?></div>
+                    <div class="cral-ss-stat__label">Totale speso</div>
+                </div>
+                <div class="cral-ss-stat cral-ss-stat--money">
+                    <div class="cral-ss-stat__value"><?php echo esc_html( $fmt_euro( $stat_speso_proprio ) ); ?></div>
+                    <div class="cral-ss-stat__label">Speso (biglietto proprio)</div>
+                </div>
+                <div class="cral-ss-stat cral-ss-stat--money">
+                    <div class="cral-ss-stat__value"><?php echo esc_html( $fmt_euro( $stat_speso_acc ) ); ?></div>
+                    <div class="cral-ss-stat__label">Speso (accompagnatori)</div>
+                </div>
+            </div>
+
+            <!-- ── LISTA PRENOTAZIONI ──────────────────────────────────────── -->
+            <h2 style="margin-top:32px;">Prenotazioni (<?php echo count( $prenotazioni ); ?>)</h2>
+
+            <?php if ( empty( $prenotazioni ) ) : ?>
+                <p>Nessuna prenotazione trovata per questo socio.</p>
+            <?php else : ?>
+
+            <table class="wp-list-table widefat fixed striped cral-ss-table">
+                <thead>
+                    <tr>
+                        <th style="width:180px;">Evento</th>
+                        <th style="width:90px;">Data evento</th>
+                        <th style="width:80px;">Stato</th>
+                        <th style="width:60px;">Biglietti</th>
+                        <th>Accompagnatori</th>
+                        <th style="width:80px;">Prezzo bigl.</th>
+                        <th style="width:80px;">Totale</th>
+                        <th style="width:80px;">Data pren.</th>
+                        <th style="width:180px;">Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ( $prenotazioni as $pren ) :
+                    $pren_stato     = (string) get_post_meta( $pren->ID, '_cral_pren_stato', true );
+                    $pren_data      = (string) get_post_meta( $pren->ID, '_cral_pren_data', true );
+                    $pren_biglietti = (int)    get_post_meta( $pren->ID, '_cral_pren_totale_biglietti', true );
+                    $pren_totale    = (float)  get_post_meta( $pren->ID, '_cral_pren_importo_totale', true );
+                    $ev_id          = (int)    get_post_meta( $pren->ID, '_cral_pren_evento_id', true );
+                    $ev_titolo      = $ev_id ? get_the_title( $ev_id ) : '—';
+                    $ev_data_raw    = $ev_id ? (string) get_post_meta( $ev_id, '_cral_evento_data', true ) : '';
+                    $ev_data_fmt    = $ev_data_raw ? wp_date( 'd/m/Y H:i', strtotime( $ev_data_raw ) ) : '—';
+                    $ev_page_url    = $ev_id ? get_permalink( $ev_id ) : '';
+                    $ev_pren_url    = $ev_id ? add_query_arg(
+                        array( 'page' => 'g-event-prenotazioni-evento', 'evento_id' => $ev_id ),
+                        admin_url( 'admin.php' )
+                    ) : '';
+                    $stato_html     = isset( $stati_label[ $pren_stato ] ) ? $stati_label[ $pren_stato ] : esc_html( $pren_stato );
+                    $pren_data_fmt  = $pren_data ? wp_date( 'd/m/Y', strtotime( $pren_data ) ) : wp_date( 'd/m/Y', strtotime( $pren->post_date ) );
+
+                    // Partecipanti via Carbon Fields.
+                    $parts_row    = $get_partecipanti( $pren->ID );
+                    $prezzo_socio = isset( $parts_row[0]['prezzo'] ) ? (float) $parts_row[0]['prezzo'] : 0.0;
+
+                    // Accompagnatori = partecipanti con indice > 0.
+                    $acc_list = '';
+                    $acc_items = array();
+                    foreach ( $parts_row as $idx => $p ) {
+                        if ( 0 === $idx ) continue; // il socio stesso, non è accompagnatore
+                        $an = trim( ( isset( $p['nome'] ) ? $p['nome'] : '' ) . ' ' . ( isset( $p['cognome'] ) ? $p['cognome'] : '' ) );
+                        $at = isset( $p['tipologia'] ) ? $p['tipologia'] : '';
+                        $ap = isset( $p['prezzo'] ) ? ' — ' . $fmt_euro( $p['prezzo'] ) : '';
+                        $acc_items[] = esc_html( $an ) . ( $at ? ' <em style="color:#888;font-size:.9em;">(' . esc_html( $at ) . ')</em>' : '' ) . '<span style="color:#555;">' . esc_html( $ap ) . '</span>';
+                    }
+                    $acc_list = $acc_items ? implode( '<br>', $acc_items ) : '<em style="color:#999;">—</em>';
+                ?>
+                    <tr>
+                        <td><strong><?php echo esc_html( $ev_titolo ); ?></strong></td>
+                        <td><?php echo esc_html( $ev_data_fmt ); ?></td>
+                        <td><?php echo wp_kses_post( $stato_html ); ?></td>
+                        <td style="text-align:center;"><?php echo esc_html( max( 1, $pren_biglietti ) ); ?></td>
+                        <td><?php echo wp_kses_post( $acc_list ); ?></td>
+                        <td><?php echo esc_html( $fmt_euro( $prezzo_socio ) ); ?></td>
+                        <td><strong><?php echo esc_html( $fmt_euro( $pren_totale ) ); ?></strong></td>
+                        <td><?php echo esc_html( $pren_data_fmt ); ?></td>
+                        <td class="cral-ss-actions">
+                            <?php if ( $ev_page_url ) : ?>
+                            <a href="<?php echo esc_url( $ev_page_url ); ?>" target="_blank" class="button button-small">&#127760; Pagina evento</a>
+                            <?php endif; ?>
+                            <?php if ( $ev_pren_url ) : ?>
+                            <a href="<?php echo esc_url( $ev_pren_url ); ?>" class="button button-small">&#128203; Prenotazioni</a>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+
+    /**
+     * Aggiunge il pulsante Importa da CSV sopra la lista soci.
+     *
+     * @param string $which Posizione: 'top' o 'bottom'.
+     */
+    public function render_import_button( $which ) {
     $screen = get_current_screen();
     if ( ! $screen || 'socio' !== $screen->post_type ) {
         return;

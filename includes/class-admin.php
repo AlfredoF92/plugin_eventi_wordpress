@@ -23,6 +23,7 @@ class Admin {
         add_action( 'wp_ajax_cral_manage_prenotazione_admin', array( $this, 'handle_manage_prenotazione_admin' ) );
         add_action( 'wp_ajax_cral_add_prenotazione_admin', array( $this, 'handle_add_prenotazione_admin' ) );
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+        add_action( 'in_admin_header', array( $this, 'render_plugin_header' ) );
         add_action( 'save_post_socio', array( $this, 'log_created_socio' ), 10, 3 );
         add_action( 'save_post_evento', array( $this, 'log_created_evento' ), 10, 3 );
         add_action( 'save_post_prenotazione', array( $this, 'log_created_prenotazione' ), 10, 3 );
@@ -72,11 +73,12 @@ class Admin {
             'toplevel_page_g-event',
             'g-event_page_g-event-impostazioni',
             'admin_page_g-event-prenotazioni-evento',
+            'admin_page_g-event-scheda-socio',
         );
-        $screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-        $is_evento_editor = $screen && 'evento' === $screen->post_type;
+        $screen          = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+        $is_cpt_page     = $screen && in_array( $screen->post_type, array( 'evento', 'socio' ), true );
 
-        if ( ! in_array( $hook, $pages, true ) && ! $is_evento_editor ) {
+        if ( ! in_array( $hook, $pages, true ) && ! $is_cpt_page ) {
             return;
         }
 
@@ -84,8 +86,79 @@ class Admin {
             'g-event-admin',
             plugins_url( 'assets/css/admin.css', dirname( __FILE__ ) ),
             array(),
-            '1.0.1'
+            '1.0.2'
         );
+    }
+
+    /**
+     * Renderizza l'header brandizzato CRAL/BCC in cima a tutte le pagine del plugin.
+     */
+    public function render_plugin_header() {
+        $screen = get_current_screen();
+        if ( ! $screen ) {
+            return;
+        }
+
+        $plugin_pages = array(
+            'toplevel_page_g-event',
+            'g-event_page_g-event-impostazioni',
+            'admin_page_g-event-prenotazioni-evento',
+            'admin_page_g-event-scheda-socio',
+        );
+
+        $is_plugin_page = in_array( $screen->id, $plugin_pages, true );
+        $is_cpt_page    = in_array( $screen->post_type, array( 'evento', 'socio' ), true );
+
+        if ( ! $is_plugin_page && ! $is_cpt_page ) {
+            return;
+        }
+
+        // Titolo contestuale per ogni pagina.
+        switch ( $screen->id ) {
+            case 'toplevel_page_g-event':
+                $page_title = 'Dashboard';
+                break;
+            case 'g-event_page_g-event-impostazioni':
+                $page_title = 'Impostazioni';
+                break;
+            case 'admin_page_g-event-prenotazioni-evento':
+                $ev_id      = isset( $_GET['evento_id'] ) ? absint( $_GET['evento_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification
+                $page_title = $ev_id ? 'Prenotazioni — ' . get_the_title( $ev_id ) : 'Prenotazioni evento';
+                break;
+            case 'admin_page_g-event-scheda-socio':
+                $sid        = isset( $_GET['socio_id'] ) ? absint( $_GET['socio_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification
+                $cognome    = $sid ? (string) get_post_meta( $sid, '_cral_cognome', true ) : '';
+                $nome       = $sid ? (string) get_post_meta( $sid, '_cral_nome', true ) : '';
+                $page_title = $sid ? 'Scheda — ' . trim( $cognome . ' ' . $nome ) : 'Scheda socio';
+                break;
+            case 'edit-evento':
+                $page_title = 'Eventi';
+                break;
+            case 'evento':
+                $page_title = 'Modifica evento';
+                break;
+            case 'add-evento':
+                $page_title = 'Nuovo evento';
+                break;
+            case 'edit-socio':
+                $page_title = 'Soci CRAL Iscritti';
+                break;
+            case 'socio':
+                $page_title = 'Scheda socio';
+                break;
+            default:
+                $page_title = 'Plugin CRAL BCC';
+        }
+
+        $logo_url = plugins_url( 'assets/img/logo-bcc.png', dirname( __FILE__ ) );
+        ?>
+        <div class="cral-admin-page-header">
+            <div class="cral-admin-page-header__inner">
+                <div class="cral-admin-page-header__title"><?php echo esc_html( $page_title ); ?></div>
+                <img src="<?php echo esc_url( $logo_url ); ?>" alt="BCC Logo" class="cral-admin-page-header__logo">
+            </div>
+        </div>
+        <?php
     }
 
     /**
@@ -247,17 +320,40 @@ class Admin {
         $evento_posti_totali = (int) get_post_meta( $evento_id, '_cral_evento_posti_totali', true );
         $evento_posti_res    = (int) get_post_meta( $evento_id, '_cral_evento_posti_residui', true );
         $evento_prezzo_base  = (float) get_post_meta( $evento_id, '_cral_evento_prezzo_base', true );
+        $data_iscr_raw       = get_post_meta( $evento_id, '_cral_evento_data_iscrizione', true );
+        $data_apertura_raw   = get_post_meta( $evento_id, '_cral_evento_data_apertura_iscrizioni', true );
 
         $acc_socio_enabled   = 'yes' === get_post_meta( $evento_id, '_cral_evento_enable_acc_socio', true );
         $acc_esterno_enabled = 'yes' === get_post_meta( $evento_id, '_cral_evento_enable_acc_esterno', true );
         $acc_junior_enabled  = 'yes' === get_post_meta( $evento_id, '_cral_evento_enable_acc_junior', true );
 
-        $evento_summary_stato = array(
-            'bozza'      => 'Bozza',
-            'pubblicato' => 'Pubblicato',
-            'concluso'   => 'Concluso',
-            'annullato'  => 'Annullato',
-        );
+        // ── Badge stato dinamico (stessa logica del frontend) ─────────────────
+        $now_ts         = time();
+        $ts_evento      = $evento_data    ? strtotime( (string) $evento_data )    : 0;
+        $ts_scadenza    = $data_iscr_raw  ? strtotime( (string) $data_iscr_raw )  : 0;
+        $ts_apertura    = $data_apertura_raw ? strtotime( (string) $data_apertura_raw ) : 0;
+        $fmt_badge_data = static function( $ts ) { return $ts ? wp_date( 'd/m/Y', $ts ) : ''; };
+
+        $badge_is_annullato   = ( 'annullato' === $evento_stato );
+        $badge_is_concluso    = ( 'concluso' === $evento_stato ) || ( $ts_evento > 0 && $ts_evento < $now_ts );
+        $badge_is_soldout     = ( ! $badge_is_annullato && ! $badge_is_concluso && $evento_posti_res <= 0 );
+        $badge_is_iscr_chiuse = ( ! $badge_is_annullato && ! $badge_is_concluso && ! $badge_is_soldout && $ts_scadenza > 0 && $ts_scadenza < $now_ts );
+        $badge_is_non_ancora  = ( ! $badge_is_annullato && ! $badge_is_concluso && ! $badge_is_soldout && ! $badge_is_iscr_chiuse && $ts_apertura > 0 && $ts_apertura > $now_ts );
+
+        if ( $badge_is_annullato ) {
+            $badge_label = 'Evento annullato';  $badge_sub = '';              $badge_color = '#92400e'; $badge_bg = '#fef9c3';
+        } elseif ( $badge_is_concluso ) {
+            $n_part      = $evento_posti_totali - $evento_posti_res;
+            $badge_label = 'Evento concluso';   $badge_sub = $n_part > 0 ? 'Partecipanti: ' . $n_part : ''; $badge_color = '#991b1b'; $badge_bg = '#fee2e2';
+        } elseif ( $badge_is_soldout ) {
+            $badge_label = 'Sold out';          $badge_sub = 'Posti disponibili: 0';                   $badge_color = '#991b1b'; $badge_bg = '#fee2e2';
+        } elseif ( $badge_is_iscr_chiuse ) {
+            $badge_label = 'Iscrizioni chiuse'; $badge_sub = $ts_scadenza ? 'Scadute il ' . $fmt_badge_data( $ts_scadenza ) : ''; $badge_color = '#9a3412'; $badge_bg = '#ffedd5';
+        } elseif ( $badge_is_non_ancora ) {
+            $badge_label = 'Evento pubblicato'; $badge_sub = $ts_apertura ? 'Le iscrizioni aprono il ' . $fmt_badge_data( $ts_apertura ) : ''; $badge_color = '#1e40af'; $badge_bg = '#eff6ff';
+        } else {
+            $badge_label = 'Iscrizioni aperte'; $badge_sub = $ts_scadenza ? 'fino al ' . $fmt_badge_data( $ts_scadenza ) : ''; $badge_color = '#166534'; $badge_bg = '#dcfce7';
+        }
 
         $url_csv = add_query_arg(
             array(
@@ -293,80 +389,99 @@ class Admin {
             ),
         );
 
+        // Copertina evento.
+        $thumbnail_html = '';
+        if ( has_post_thumbnail( $evento_id ) ) {
+            $thumbnail_html = get_the_post_thumbnail( $evento_id, array( 320, 200 ), array(
+                'style' => 'width:100%;height:100%;object-fit:cover;display:block;',
+            ) );
+        }
+
+        // Riassunto evento.
+        $riassunto = $evento->post_excerpt
+            ? $evento->post_excerpt
+            : (string) get_post_meta( $evento_id, '_cral_evento_descrizione', true );
+        // Fallback: prime 200 parole del contenuto.
+        if ( ! $riassunto && $evento->post_content ) {
+            $riassunto = wp_trim_words( wp_strip_all_tags( $evento->post_content ), 40, '…' );
+        }
         ?>
         <div class="wrap">
-            <h1>
-                Prenotazioni — <?php echo esc_html( $evento->post_title ); ?>
-            </h1>
 
-            <div class="cral-evento-summary">
-                <div class="cral-evento-summary__title-wrap">
-                    <h2><?php echo esc_html( $evento->post_title ); ?></h2>
-                    <span class="cral-evento-summary__badge">
-                        <?php echo esc_html( $evento_summary_stato[ $evento_stato ] ?? '—' ); ?>
-                    </span>
+            <!-- ══ SEZIONE 1: Copertina · Titolo · Riassunto ══════════════════ -->
+            <div class="cral-ev-hero">
+                <?php if ( $thumbnail_html ) : ?>
+                <div class="cral-ev-hero__cover"><?php echo $thumbnail_html; // phpcs:ignore ?></div>
+                <?php endif; ?>
+                <div class="cral-ev-hero__body">
+                    <!-- Badge stato -->
+                    <div class="cral-evento-summary__dyn-badge" style="background:<?php echo esc_attr( $badge_bg ); ?>;color:<?php echo esc_attr( $badge_color ); ?>;">
+                        <span class="cral-evento-summary__dyn-badge-title"><?php echo esc_html( $badge_label ); ?></span>
+                        <?php if ( $badge_sub ) : ?>
+                        <span class="cral-evento-summary__dyn-badge-sub"><?php echo esc_html( $badge_sub ); ?></span>
+                        <?php endif; ?>
+                    </div>
+                    <h2 class="cral-ev-hero__title"><?php echo esc_html( $evento->post_title ); ?></h2>
+                    <?php if ( $riassunto ) : ?>
+                    <p class="cral-ev-hero__excerpt"><?php echo esc_html( wp_strip_all_tags( $riassunto ) ); ?></p>
+                    <?php endif; ?>
+                    <a href="<?php echo esc_url( get_edit_post_link( $evento_id ) ); ?>" class="cral-ev-hero__edit-link">&#9998; Modifica evento</a>
                 </div>
-                <div class="cral-evento-summary__grid">
-                    <div class="cral-evento-summary__item">
-                        <span class="label">Data evento</span>
-                        <span class="value"><?php echo esc_html( $evento_data ? wp_date( 'd/m/Y H:i', strtotime( $evento_data ) ) : '—' ); ?></span>
+            </div>
+
+            <!-- ══ SEZIONE 2: Statistiche ════════════════════════════════════ -->
+            <div class="cral-evento-summary" style="margin-top:0;">
+                <div class="cral-evento-summary__title-wrap" style="display:none;"></div>
+
+                <!-- ── Info principali ── -->
+                <div class="cral-ev-info-grid">
+                    <div class="cral-ev-info-item">
+                        <span class="cral-ev-info-label">&#128197; Data evento</span>
+                        <span class="cral-ev-info-value"><?php echo esc_html( $evento_data ? wp_date( 'd/m/Y H:i', strtotime( $evento_data ) ) : '—' ); ?></span>
                     </div>
-                    <div class="cral-evento-summary__item">
-                        <span class="label">Luogo</span>
-                        <span class="value"><?php echo esc_html( $evento_luogo ?: '—' ); ?></span>
+                    <div class="cral-ev-info-item">
+                        <span class="cral-ev-info-label">&#128205; Luogo</span>
+                        <span class="cral-ev-info-value"><?php echo esc_html( $evento_luogo ?: '—' ); ?></span>
                     </div>
-                    <div class="cral-evento-summary__item">
-                        <span class="label">Prezzo biglietto evento</span>
-                        <span class="value">€ <?php echo esc_html( number_format( $evento_prezzo_base, 2, ',', '.' ) ); ?></span>
+                    <div class="cral-ev-info-item">
+                        <span class="cral-ev-info-label">&#127915; Prezzo biglietto</span>
+                        <span class="cral-ev-info-value">€ <?php echo esc_html( number_format( $evento_prezzo_base, 2, ',', '.' ) ); ?></span>
                     </div>
-                    <div class="cral-evento-summary__item">
-                        <span class="label">Posti</span>
-                        <span class="value"><?php echo esc_html( $evento_posti_res . ' / ' . $evento_posti_totali . ' residui' ); ?></span>
-                    </div>
-                    <div class="cral-evento-summary__item">
-                        <span class="label">Accompagnatore Socio</span>
-                        <span class="value">
-                            <?php
-                            echo esc_html(
-                                $acc_socio_enabled
-                                    ? 'Attivo — € ' . number_format( (float) get_post_meta( $evento_id, '_cral_evento_prezzo_acc_socio', true ), 2, ',', '.' ) .
-                                        ' (max ' . (int) get_post_meta( $evento_id, '_cral_evento_max_acc_socio', true ) . ')'
-                                    : 'Non attivo'
-                            );
-                            ?>
+                    <div class="cral-ev-info-item">
+                        <span class="cral-ev-info-label">&#128065; Posti residui</span>
+                        <span class="cral-ev-info-value">
+                            <strong><?php echo esc_html( $evento_posti_res ); ?></strong>
+                            <span style="color:#888;font-size:.9em;"> / <?php echo esc_html( $evento_posti_totali ); ?></span>
                         </span>
                     </div>
-                    <div class="cral-evento-summary__item">
-                        <span class="label">Accompagnatore Esterno</span>
-                        <span class="value">
-                            <?php
-                            echo esc_html(
-                                $acc_esterno_enabled
-                                    ? 'Attivo — € ' . number_format( (float) get_post_meta( $evento_id, '_cral_evento_prezzo_acc_esterno', true ), 2, ',', '.' ) .
-                                        ' (max ' . (int) get_post_meta( $evento_id, '_cral_evento_max_acc_esterno', true ) . ')'
-                                    : 'Non attivo'
-                            );
-                            ?>
-                        </span>
-                    </div>
-                    <div class="cral-evento-summary__item">
-                        <span class="label">Accompagnatore Junior</span>
-                        <span class="value">
-                            <?php
-                            echo esc_html(
-                                $acc_junior_enabled
-                                    ? 'Attivo — € ' . number_format( (float) get_post_meta( $evento_id, '_cral_evento_prezzo_acc_junior', true ), 2, ',', '.' ) .
-                                        ' (max ' . (int) get_post_meta( $evento_id, '_cral_evento_max_acc_junior', true ) . ')'
-                                    : 'Non attivo'
-                            );
-                            ?>
-                        </span>
-                    </div>
-                    <div class="cral-evento-summary__item">
-                        <span class="label">Prenotazioni registrate</span>
-                        <span class="value"><?php echo esc_html( count( $prenotazioni ) ); ?></span>
+                    <div class="cral-ev-info-item">
+                        <span class="cral-ev-info-label">&#128203; Prenotazioni</span>
+                        <span class="cral-ev-info-value"><strong><?php echo esc_html( count( $prenotazioni ) ); ?></strong></span>
                     </div>
                 </div>
+
+                <!-- ── Accompagnatori ── -->
+                <div class="cral-ev-acc-grid">
+                    <?php
+                    $acc_types = array(
+                        'Socio'   => array( 'enabled' => $acc_socio_enabled,   'price' => (float) get_post_meta( $evento_id, '_cral_evento_prezzo_acc_socio', true ),   'max' => (int) get_post_meta( $evento_id, '_cral_evento_max_acc_socio', true ) ),
+                        'Esterno' => array( 'enabled' => $acc_esterno_enabled, 'price' => (float) get_post_meta( $evento_id, '_cral_evento_prezzo_acc_esterno', true ), 'max' => (int) get_post_meta( $evento_id, '_cral_evento_max_acc_esterno', true ) ),
+                        'Junior'  => array( 'enabled' => $acc_junior_enabled,  'price' => (float) get_post_meta( $evento_id, '_cral_evento_prezzo_acc_junior', true ),  'max' => (int) get_post_meta( $evento_id, '_cral_evento_max_acc_junior', true ) ),
+                    );
+                    foreach ( $acc_types as $label => $cfg ) :
+                    ?>
+                    <div class="cral-ev-acc-item <?php echo $cfg['enabled'] ? 'cral-ev-acc-item--on' : 'cral-ev-acc-item--off'; ?>">
+                        <span class="cral-ev-acc-label">Acc. <?php echo esc_html( $label ); ?></span>
+                        <?php if ( $cfg['enabled'] ) : ?>
+                            <span class="cral-ev-acc-price">€ <?php echo esc_html( number_format( $cfg['price'], 2, ',', '.' ) ); ?></span>
+                            <span class="cral-ev-acc-max">max <?php echo esc_html( $cfg['max'] ); ?></span>
+                        <?php else : ?>
+                            <span class="cral-ev-acc-off">Non attivo</span>
+                        <?php endif; ?>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+
             </div>
 
             <p>

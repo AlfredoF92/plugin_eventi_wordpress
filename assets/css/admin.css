@@ -1,4 +1,214 @@
-/* Backend style tuning for Evento editor */
+/* ── HEADER BRANDIZZATO CRAL / BCC ───────────────────────────────────────── */
+.cral-admin-page-header {
+    background: #fff;
+    border-bottom: 3px solid #003f8a;
+    margin: -10px -20px 24px -20px; /* sorpassa il padding del wp-admin */
+    padding: 0 30px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+.cral-admin-page-header__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 74px;
+    max-width: 1600px;
+    margin: 0 auto;
+}
+.cral-admin-page-header__title {
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: #003f8a;
+    letter-spacing: -.01em;
+    line-height: 1.1;
+}
+.cral-admin-page-header__logo {
+    height: 52px;
+    width: auto;
+    object-fit: contain;
+}
+
+/* Nasconde i titoli nativi WP sulle pagine CPT e plugin gestite dall'header */
+body.post-type-evento .wrap > h1.wp-heading-inline,
+body.post-type-socio  .wrap > h1.wp-heading-inline,
+body.post-type-evento .wrap > h1:first-child,
+body.post-type-socio  .wrap > h1:first-child {
+    display: none !important;
+}
+/* Nasconde l'H1 nelle pagine plugin custom (render_impostazioni, ecc.) */
+.cral-admin-page-header ~ .wrap > h1:first-child {
+    display: none;
+}
+
+/* ── SEPARAZIONE SEZIONI LISTA EVENTI ────────────────────────────────────── */
+
+/* Wrapper "Azioni e filtri rapidi" */
+.cral-azioni-rapide {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 16px 10px;
+    margin-bottom: 16px;
+    overflow: hidden; /* contiene i float interni */
+}
+
+/* Etichetta sezione */
+.cral-tablenav-label {
+    display: block;
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #94a3b8;
+    margin-bottom: 10px;
+    clear: both;
+}
+
+/* Il tablenav dentro la nostra sezione non ha bordi propri */
+.cral-azioni-rapide .tablenav {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+}
+
+/* La subsubsub (Tutti/Miei/Pubblicati) dentro la sezione */
+.cral-azioni-rapide .subsubsub {
+    display: block;
+    clear: both;
+    margin: 10px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid #e2e8f0;
+    font-size: .85rem;
+}
+
+/* Search box dentro la sezione azioni rapide */
+.cral-azioni-rapide .search-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    float: right;
+    margin: 0;
+    padding: 0;
+}
+.cral-azioni-rapide .search-box input[type="search"] {
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    padding: 0 10px;
+    font-size: .85rem;
+}
+.cral-azioni-rapide .search-box input[type="submit"] {
+    height: 30px;
+    border-radius: 6px;
+}
+
+/* ── PULSANTI PRIMARI CRAL (Aggiungi evento + Vedi iscritti) ─────────────── */
+body.post-type-evento a.cral-btn-add-evento,
+body.post-type-evento a.page-title-action,
+body.post-type-evento a.cral-btn-iscritti {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+    background: #003f8a !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 6px 14px !important;
+    font-size: .85rem !important;
+    font-weight: 600 !important;
+    line-height: 1.4 !important;
+    height: auto !important;
+    box-shadow: 0 2px 6px rgba(0,63,138,.25);
+    text-decoration: none;
+    transition: background .15s, box-shadow .15s;
+}
+/* Padding più generoso solo per il pulsante principale */
+body.post-type-evento a.page-title-action {
+    padding: 8px 20px !important;
+    font-size: .9rem !important;
+}
+body.post-type-evento a.cral-btn-add-evento:hover,
+body.post-type-evento a.page-title-action:hover,
+body.post-type-evento a.cral-btn-iscritti:hover {
+    background: #002d66 !important;
+    box-shadow: 0 4px 10px rgba(0,63,138,.35);
+    color: #fff !important;
+}
+/* Icona "+" bianca nel pulsante aggiungi */
+.cral-add-icon {
+    font-size: 1.15em;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+}
+
+/* ── FILTRI LISTA EVENTI ──────────────────────────────────────────────────── */
+.cral-eventi-filtri {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px 20px 12px;
+    margin: 0 0 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+.cral-filtri-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+    align-items: flex-end;
+}
+.cral-filtro-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.cral-filtro-label {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #64748b;
+    white-space: nowrap;
+}
+.cral-filtro-input,
+.cral-filtro-select {
+    height: 34px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 0 10px;
+    font-size: .85rem;
+    color: #1e293b;
+    background: #f8fafc;
+    min-width: 140px;
+}
+.cral-filtro-input:focus,
+.cral-filtro-select:focus {
+    border-color: #003f8a;
+    outline: none;
+    background: #fff;
+}
+.cral-filtro-input--date { min-width: 130px; }
+.cral-filtro-group--actions {
+    flex-direction: row;
+    gap: 8px;
+    align-items: flex-end;
+    padding-bottom: 1px;
+}
+.cral-filtro-btn {
+    height: 34px;
+    line-height: 32px;
+    padding: 0 14px !important;
+    font-size: .85rem !important;
+}
+
+/* Colonna thumbnail nella lista eventi */
+body.post-type-evento .column-cral_evento_thumb {
+    width: 72px !important;
+    padding: 8px 6px !important;
+}
+
+/* ── Backend style tuning for Evento editor ──────────────────────────────── */
 body.post-type-evento .cf-container__fields {
     background: #fff;
 }
@@ -244,4 +454,229 @@ body.post-type-evento .cf-field:has(input[name="carbon_fields_compact_input[_cra
 .admin_page_g-event-prenotazioni-evento .wp-list-table th:nth-child(7),
 .admin_page_g-event-prenotazioni-evento .wp-list-table td:nth-child(7) {
     min-width: 180px;
+}
+
+/* ── HERO EVENTO (Sezione 1: Copertina + Titolo + Riassunto) ─────────────── */
+.cral-ev-hero {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.cral-ev-hero__cover {
+    flex: 0 0 260px;
+    min-height: 180px;
+    overflow: hidden;
+    background: #e2e8f0;
+}
+.cral-ev-hero__cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.cral-ev-hero__body {
+    flex: 1;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+}
+.cral-ev-hero__title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+    line-height: 1.2;
+}
+.cral-ev-hero__excerpt {
+    font-size: .9rem;
+    color: #475569;
+    margin: 0;
+    line-height: 1.6;
+    max-width: 680px;
+}
+.cral-ev-hero__edit-link {
+    font-size: .8rem;
+    color: #003f8a;
+    text-decoration: none;
+    margin-top: 4px;
+    width: fit-content;
+}
+.cral-ev-hero__edit-link:hover { text-decoration: underline; }
+
+/* Badge stato dentro hero */
+.cral-ev-hero__body .cral-evento-summary__dyn-badge {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    border-radius: 8px;
+    padding: 6px 14px;
+    width: fit-content;
+}
+.cral-evento-summary__dyn-badge-title {
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    line-height: 1.2;
+}
+.cral-evento-summary__dyn-badge-sub {
+    font-size: .68rem;
+    font-weight: 500;
+    opacity: .85;
+    line-height: 1.3;
+}
+
+/* ── GRIGLIA INFO EVENTO ──────────────────────────────────────────────────── */
+.cral-ev-info-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 16px 0 12px;
+    background: #fff;
+}
+.cral-ev-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 18px;
+    border-right: 1px solid #e2e8f0;
+    flex: 1 1 140px;
+}
+.cral-ev-info-item:last-child { border-right: none; }
+.cral-ev-info-label {
+    font-size: .72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #94a3b8;
+}
+.cral-ev-info-value {
+    font-size: .95rem;
+    color: #1e293b;
+    font-weight: 500;
+}
+
+/* ── GRIGLIA ACCOMPAGNATORI ───────────────────────────────────────────────── */
+.cral-ev-acc-grid {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+.cral-ev-acc-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    min-width: 130px;
+    background: #f8fafc;
+}
+.cral-ev-acc-item--on {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+}
+.cral-ev-acc-item--off {
+    opacity: .6;
+}
+.cral-ev-acc-label {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #64748b;
+}
+.cral-ev-acc-item--on .cral-ev-acc-label { color: #1d4ed8; }
+.cral-ev-acc-price {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e3a5f;
+}
+.cral-ev-acc-max {
+    font-size: .75rem;
+    color: #64748b;
+}
+.cral-ev-acc-off {
+    font-size: .82rem;
+    color: #94a3b8;
+    font-style: italic;
+}
+
+/* ── SCHEDA SOCIO ─────────────────────────────────────────────────────────── */
+.cral-scheda-socio-wrap .cral-ss-meta {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin: 8px 0 24px;
+    color: #555;
+    font-size: .95em;
+}
+.cral-scheda-socio-wrap .cral-ss-meta a {
+    color: inherit;
+}
+.cral-ss-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+}
+.cral-ss-stat {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 18px 20px 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.cral-ss-stat--money {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+}
+.cral-ss-stat__value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #1e3a5f;
+    line-height: 1.1;
+    margin-bottom: 4px;
+}
+.cral-ss-stat--money .cral-ss-stat__value {
+    color: #1d4ed8;
+    font-size: 1.3rem;
+}
+.cral-ss-stat__label {
+    font-size: .78rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+.cral-ss-table {
+    margin-top: 8px;
+}
+.cral-ss-table td,
+.cral-ss-table th {
+    vertical-align: middle;
+    font-size: .88rem;
+}
+.cral-ss-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.cral-ss-actions .button {
+    white-space: nowrap;
+}
+/* Pulsante nella lista soci */
+.column-cral_scheda {
+    width: 120px;
 }

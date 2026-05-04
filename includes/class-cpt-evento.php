@@ -30,6 +30,11 @@ class CPT_Evento {
         add_filter( 'manage_evento_posts_columns', array( $this, 'set_columns' ) );
         add_action( 'manage_evento_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
         add_filter( 'post_row_actions', array( $this, 'add_row_action_vedi_iscritti' ), 10, 2 );
+
+        // Filtri custom per la lista eventi.
+        add_action( 'restrict_manage_posts', array( $this, 'render_event_filters' ) );
+        add_action( 'pre_get_posts', array( $this, 'apply_event_filters' ) );
+        add_action( 'admin_footer', array( $this, 'evento_list_filter_script' ) );
     }
 
     /**
@@ -406,6 +411,7 @@ class CPT_Evento {
     public function set_columns( $columns ) {
         return array(
             'cb'                        => $columns['cb'],
+            'cral_evento_thumb'         => '',
             'title'                     => 'Titolo',
             'cral_evento_data'          => 'Data',
             'cral_evento_luogo'         => 'Luogo',
@@ -425,6 +431,15 @@ class CPT_Evento {
      */
     public function render_column( $column, $post_id ) {
         switch ( $column ) {
+            case 'cral_evento_thumb':
+                if ( has_post_thumbnail( $post_id ) ) {
+                    echo get_the_post_thumbnail( $post_id, array( 56, 56 ), array(
+                        'style' => 'width:56px;height:56px;object-fit:cover;border-radius:6px;display:block;',
+                    ) );
+                } else {
+                    echo '<div style="width:56px;height:56px;border-radius:6px;background:#e2e8f0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:1.4rem;">&#128247;</div>';
+                }
+                break;
             case 'cral_evento_data':
                 $data = get_post_meta( $post_id, '_cral_evento_data', true );
                 echo esc_html( $data ? wp_date( 'd/m/Y H:i', strtotime( $data ) ) : '—' );
@@ -459,7 +474,7 @@ class CPT_Evento {
                     ),
                     admin_url( 'admin.php' )
                 );
-                echo '<a class="button button-small" href="' . esc_url( $url ) . '">Vedi iscritti</a>';
+                echo '<a class="button button-small cral-btn-iscritti" href="' . esc_url( $url ) . '">&#128203; Vedi iscritti</a>';
                 break;
         }
     }
@@ -490,5 +505,248 @@ class CPT_Evento {
 
         $actions['cral_vedi_iscritti'] = '<a href="' . esc_url( $url ) . '">Vedi iscritti</a>';
         return $actions;
+    }
+
+    /**
+     * Renderizza la barra filtri custom sopra la lista eventi.
+     *
+     * @param string $post_type Post type corrente.
+     */
+    public function render_event_filters( $post_type ) {
+        if ( 'evento' !== $post_type ) {
+            return;
+        }
+
+        // Valori correnti (phpcs: nonce not needed for read-only GET params).
+        $f_stato    = isset( $_GET['cral_f_stato'] )      ? sanitize_text_field( wp_unslash( $_GET['cral_f_stato'] ) )      : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        $f_posti    = isset( $_GET['cral_f_posti'] )      ? sanitize_text_field( wp_unslash( $_GET['cral_f_posti'] ) )      : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        $f_data_da  = isset( $_GET['cral_f_data_da'] )    ? sanitize_text_field( wp_unslash( $_GET['cral_f_data_da'] ) )    : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        $f_data_a   = isset( $_GET['cral_f_data_a'] )     ? sanitize_text_field( wp_unslash( $_GET['cral_f_data_a'] ) )     : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        $f_cerca    = isset( $_GET['cral_f_cerca'] )      ? sanitize_text_field( wp_unslash( $_GET['cral_f_cerca'] ) )      : ''; // phpcs:ignore WordPress.Security.NonceVerification
+
+        // Categorie disponibili.
+        $categorie = get_terms( array(
+            'taxonomy'   => 'categoria_evento',
+            'hide_empty' => false,
+        ) );
+        $f_cat = isset( $_GET['cral_f_categoria'] ) ? sanitize_text_field( wp_unslash( $_GET['cral_f_categoria'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+
+        ?>
+        <div class="cral-eventi-filtri">
+
+            <div class="cral-filtri-row">
+
+                <!-- Cerca per titolo -->
+                <div class="cral-filtro-group">
+                    <label class="cral-filtro-label">&#128269; Cerca</label>
+                    <input type="text" name="cral_f_cerca" value="<?php echo esc_attr( $f_cerca ); ?>" placeholder="Titolo evento…" class="cral-filtro-input">
+                </div>
+
+                <!-- Stato -->
+                <div class="cral-filtro-group">
+                    <label class="cral-filtro-label">&#9873; Stato</label>
+                    <select name="cral_f_stato" class="cral-filtro-select">
+                        <option value="">Tutti gli stati</option>
+                        <option value="pubblicato" <?php selected( $f_stato, 'pubblicato' ); ?>>Pubblicato</option>
+                        <option value="bozza"      <?php selected( $f_stato, 'bozza' ); ?>>Bozza</option>
+                        <option value="concluso"   <?php selected( $f_stato, 'concluso' ); ?>>Concluso</option>
+                        <option value="annullato"  <?php selected( $f_stato, 'annullato' ); ?>>Annullato</option>
+                    </select>
+                </div>
+
+                <!-- Posti -->
+                <div class="cral-filtro-group">
+                    <label class="cral-filtro-label">&#128065; Disponibilità</label>
+                    <select name="cral_f_posti" class="cral-filtro-select">
+                        <option value="">Tutti</option>
+                        <option value="disponibili" <?php selected( $f_posti, 'disponibili' ); ?>>Con posti disponibili</option>
+                        <option value="soldout"     <?php selected( $f_posti, 'soldout' ); ?>>Sold out</option>
+                    </select>
+                </div>
+
+                <!-- Categoria -->
+                <?php if ( ! empty( $categorie ) && ! is_wp_error( $categorie ) ) : ?>
+                <div class="cral-filtro-group">
+                    <label class="cral-filtro-label">&#127991; Categoria</label>
+                    <select name="cral_f_categoria" class="cral-filtro-select">
+                        <option value="">Tutte le categorie</option>
+                        <?php foreach ( $categorie as $cat ) : ?>
+                        <option value="<?php echo esc_attr( $cat->slug ); ?>" <?php selected( $f_cat, $cat->slug ); ?>>
+                            <?php echo esc_html( $cat->name ); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php endif; ?>
+
+                <!-- Data da / a -->
+                <div class="cral-filtro-group">
+                    <label class="cral-filtro-label">&#128197; Data da</label>
+                    <input type="date" name="cral_f_data_da" value="<?php echo esc_attr( $f_data_da ); ?>" class="cral-filtro-input cral-filtro-input--date">
+                </div>
+                <div class="cral-filtro-group">
+                    <label class="cral-filtro-label">&#128197; Data a</label>
+                    <input type="date" name="cral_f_data_a" value="<?php echo esc_attr( $f_data_a ); ?>" class="cral-filtro-input cral-filtro-input--date">
+                </div>
+
+                <!-- Pulsanti -->
+                <div class="cral-filtro-group cral-filtro-group--actions">
+                    <button type="submit" class="button button-primary cral-filtro-btn">&#9654; Filtra</button>
+                    <a href="<?php echo esc_url( admin_url( 'edit.php?post_type=evento' ) ); ?>" class="button cral-filtro-btn">&#10005; Reset</a>
+                </div>
+
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Applica i filtri custom alla query della lista eventi.
+     *
+     * @param \WP_Query $query La query corrente.
+     */
+    public function apply_event_filters( $query ) {
+        if ( ! is_admin() || ! $query->is_main_query() ) {
+            return;
+        }
+
+        if ( 'evento' !== $query->get( 'post_type' ) ) {
+            return;
+        }
+
+        $meta_query = array( 'relation' => 'AND' );
+
+        // Filtro stato.
+        $f_stato = isset( $_GET['cral_f_stato'] ) ? sanitize_text_field( wp_unslash( $_GET['cral_f_stato'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        if ( $f_stato ) {
+            $meta_query[] = array(
+                'key'     => '_cral_evento_stato',
+                'value'   => $f_stato,
+                'compare' => '=',
+            );
+        }
+
+        // Filtro posti.
+        $f_posti = isset( $_GET['cral_f_posti'] ) ? sanitize_text_field( wp_unslash( $_GET['cral_f_posti'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        if ( 'disponibili' === $f_posti ) {
+            $meta_query[] = array(
+                'key'     => '_cral_evento_posti_residui',
+                'value'   => '0',
+                'compare' => '>',
+                'type'    => 'NUMERIC',
+            );
+        } elseif ( 'soldout' === $f_posti ) {
+            $meta_query[] = array(
+                'key'     => '_cral_evento_posti_residui',
+                'value'   => '0',
+                'compare' => '<=',
+                'type'    => 'NUMERIC',
+            );
+        }
+
+        // Filtro data da / a.
+        $f_data_da = isset( $_GET['cral_f_data_da'] ) ? sanitize_text_field( wp_unslash( $_GET['cral_f_data_da'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        $f_data_a  = isset( $_GET['cral_f_data_a'] )  ? sanitize_text_field( wp_unslash( $_GET['cral_f_data_a'] ) )  : ''; // phpcs:ignore WordPress.Security.NonceVerification
+
+        if ( $f_data_da && $f_data_a ) {
+            $meta_query[] = array(
+                'key'     => '_cral_evento_data',
+                'value'   => array( $f_data_da . ' 00:00:00', $f_data_a . ' 23:59:59' ),
+                'compare' => 'BETWEEN',
+                'type'    => 'DATETIME',
+            );
+        } elseif ( $f_data_da ) {
+            $meta_query[] = array(
+                'key'     => '_cral_evento_data',
+                'value'   => $f_data_da . ' 00:00:00',
+                'compare' => '>=',
+                'type'    => 'DATETIME',
+            );
+        } elseif ( $f_data_a ) {
+            $meta_query[] = array(
+                'key'     => '_cral_evento_data',
+                'value'   => $f_data_a . ' 23:59:59',
+                'compare' => '<=',
+                'type'    => 'DATETIME',
+            );
+        }
+
+        if ( count( $meta_query ) > 1 ) {
+            $query->set( 'meta_query', $meta_query );
+        }
+
+        // Filtro categoria (taxonomy).
+        $f_cat = isset( $_GET['cral_f_categoria'] ) ? sanitize_text_field( wp_unslash( $_GET['cral_f_categoria'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        if ( $f_cat ) {
+            $query->set( 'tax_query', array(
+                array(
+                    'taxonomy' => 'categoria_evento',
+                    'field'    => 'slug',
+                    'terms'    => $f_cat,
+                ),
+            ) );
+        }
+
+        // Filtro ricerca per titolo.
+        $f_cerca = isset( $_GET['cral_f_cerca'] ) ? sanitize_text_field( wp_unslash( $_GET['cral_f_cerca'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
+        if ( $f_cerca ) {
+            $query->set( 's', $f_cerca );
+        }
+    }
+
+    /**
+     * JS che riposiziona il blocco filtri custom prima del tablenav nativo.
+     */
+    public function evento_list_filter_script() {
+        $screen = get_current_screen();
+        if ( ! $screen || 'edit-evento' !== $screen->id ) {
+            return;
+        }
+        ?>
+        <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var filterBar  = document.querySelector('.cral-eventi-filtri');
+            var form       = document.getElementById('posts-filter');
+            var tablenav   = form ? form.querySelector('.tablenav.top') : null;
+            var subsubsub  = document.querySelector('.subsubsub');
+            var wrap       = document.querySelector('.wrap');
+
+            if ( ! filterBar || ! form || ! tablenav ) return;
+
+            // 1. Sposta il blocco filtri custom PRIMA del tablenav (dentro il form).
+            form.insertBefore( filterBar, tablenav );
+
+            // 2. Avvolgi il tablenav in un contenitore "Azioni e filtri rapidi".
+            var rapidiWrap = document.createElement('div');
+            rapidiWrap.className = 'cral-azioni-rapide';
+            tablenav.parentNode.insertBefore( rapidiWrap, tablenav );
+            rapidiWrap.appendChild( tablenav );
+
+            // 3. Inserisci etichetta in cima alla sezione.
+            var label = document.createElement('div');
+            label.className = 'cral-tablenav-label';
+            label.innerHTML = '&#9881; Azioni e filtri rapidi';
+            rapidiWrap.insertBefore( label, tablenav );
+
+            // 4. Sposta la subsubsub (Tutti | Miei | Pubblicati) dentro la sezione.
+            if ( subsubsub ) {
+                rapidiWrap.appendChild( subsubsub );
+            }
+
+            // 5. Sposta il box "Cerca eventi" dentro la sezione azioni rapide.
+            var searchBox = form ? form.querySelector('.search-box') : null;
+            if ( searchBox ) {
+                rapidiWrap.appendChild( searchBox );
+            }
+
+            // 6. Aggiungi icona + stile al pulsante "Aggiungi nuovo evento".
+            var addBtn = document.querySelector('.page-title-action');
+            if ( addBtn && addBtn.textContent.trim().toLowerCase().indexOf('aggiungi') !== -1 ) {
+                addBtn.classList.add('cral-btn-add-evento');
+                addBtn.innerHTML = '<span class="cral-add-icon" aria-hidden="true">+</span> ' + addBtn.textContent.trim();
+            }
+        });
+        </script>
+        <?php
     }
 }
