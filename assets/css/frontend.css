@@ -150,3 +150,115 @@
         justify-content: flex-start;
     }
 }
+
+/* ── FILTRO EVENTI FRONTEND [cral_filtro_eventi] ─────────────────────────── */
+.cral-fe-filtri {
+    background: transparent;
+    padding: 0;
+    margin-bottom: 28px;
+}
+.cral-fe-filtri__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+.cral-fe-filtri__group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(0,0,0,.10);
+    border-radius: 8px;
+    padding: 0 12px;
+    height: 40px;
+}
+.cral-fe-filtri__label {
+    font-size: .9rem;
+    opacity: .6;
+    flex-shrink: 0;
+}
+.cral-fe-filtri__input,
+.cral-fe-filtri__select {
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: .85rem;
+    color: inherit;
+    height: 100%;
+    min-width: 0;
+    padding: 0;
+}
+.cral-fe-filtri__group--cerca {
+    flex: 1 1 180px;
+}
+.cral-fe-filtri__group--cerca .cral-fe-filtri__input {
+    width: 100%;
+}
+.cral-fe-filtri__group--date {
+    min-width: 130px;
+}
+.cral-fe-filtri__group--actions {
+    background: transparent;
+    border: none;
+    padding: 0;
+    gap: 6px;
+}
+.cral-fe-filtri__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    padding: 0 20px;
+    border-radius: 8px;
+    font-size: .85rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: opacity .15s;
+    border: none;
+}
+.cral-fe-filtri__btn--submit {
+    background: var(--e-global-color-primary, #003f8a);
+    color: #fff;
+}
+.cral-fe-filtri__btn--submit:hover { opacity: .88; }
+.cral-fe-filtri__btn--reset {
+    background: rgba(0,0,0,.07);
+    color: inherit;
+    padding: 0 12px;
+    font-size: 1rem;
+}
+.cral-fe-filtri__btn--reset:hover { background: rgba(0,0,0,.13); }
+.cral-fe-filtri__btn--reset-hidden { display: none !important; }
+
+/* ── AJAX LOOP LOADING STATE ─────────────────────────────────────────────── */
+#cral-loop-target {
+    position: relative;
+    transition: opacity .25s;
+}
+#cral-loop-target.cral-loop--loading {
+    opacity: .35;
+    pointer-events: none;
+}
+#cral-loop-target.cral-loop--loading::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    z-index: 10;
+}
+.cral-loop-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: #6b7280;
+    font-size: .95rem;
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+    .cral-fe-filtri__row { gap: 8px; }
+    .cral-fe-filtri__group { flex: 1 1 calc(50% - 4px); }
+    .cral-fe-filtri__group--actions { flex: 1 1 100%; justify-content: flex-end; }
+}

@@ -45,6 +45,10 @@ class Elementor_Dynamic {
         add_shortcode( 'cral_evento_categoria_slug', array( $this, 'evento_categoria_slug' ) );
         add_shortcode( 'cral_evento_categoria_link', array( $this, 'evento_categoria_link' ) );
         add_shortcode( 'cral_evento_badge', array( $this, 'evento_badge' ) );
+        add_shortcode( 'cral_filtro_eventi', array( $this, 'filtro_eventi' ) );
+
+        // Hook query Elementor: loop eventi filtrati dal form frontend.
+        add_action( 'elementor/query/cral_eventi_filtrati', array( $this, 'query_eventi_filtrati' ) );
 
         // Hook query Elementor: loop eventi prenotati dal socio loggato.
         add_action( 'elementor/query/cral_eventi_prenotati', array( $this, 'query_eventi_prenotati' ) );
@@ -592,6 +596,318 @@ class Elementor_Dynamic {
         </div>
         <?php
         return ob_get_clean();
+    }
+
+    /**
+     * Shortcode [cral_filtro_eventi] — barra filtri frontend per Loop Grid Elementor.
+     * Collegare il Loop Grid con ID Query: cral_eventi_filtrati
+     */
+    public function filtro_eventi( $atts ) {
+        $atts = shortcode_atts( array( 'action' => '' ), $atts, 'cral_filtro_eventi' );
+
+        // Valori correnti dai parametri GET.
+        $f_cerca   = isset( $_GET['cfe_cerca'] )    ? sanitize_text_field( wp_unslash( $_GET['cfe_cerca'] ) )    : ''; // phpcs:ignore
+        $f_stato   = isset( $_GET['cfe_stato'] )    ? sanitize_text_field( wp_unslash( $_GET['cfe_stato'] ) )    : ''; // phpcs:ignore
+        $f_cat     = isset( $_GET['cfe_cat'] )      ? sanitize_text_field( wp_unslash( $_GET['cfe_cat'] ) )      : ''; // phpcs:ignore
+        $f_data_da = isset( $_GET['cfe_data_da'] )  ? sanitize_text_field( wp_unslash( $_GET['cfe_data_da'] ) )  : ''; // phpcs:ignore
+        $f_data_a  = isset( $_GET['cfe_data_a'] )   ? sanitize_text_field( wp_unslash( $_GET['cfe_data_a'] ) )   : ''; // phpcs:ignore
+
+        $action_url = esc_url( $atts['action'] ?: get_permalink() );
+
+        $categorie = get_terms( array(
+            'taxonomy'   => 'categoria_evento',
+            'hide_empty' => true,
+        ) );
+
+        $stati = array(
+            'aperto'   => 'Iscrizioni aperte',
+            'presto'   => 'Prossimamente',
+            'chiuse'   => 'Iscrizioni chiuse',
+            'soldout'  => 'Sold out',
+            'concluso' => 'Evento concluso',
+        );
+
+        $has_active = $f_cerca || $f_stato || $f_cat || $f_data_da || $f_data_a;
+
+        ob_start();
+        ?>
+        <form class="cral-fe-filtri" method="GET" action="<?php echo $action_url; ?>" data-cral-ajax-filter="1" novalidate>
+            <div class="cral-fe-filtri__row">
+
+                <!-- Cerca -->
+                <div class="cral-fe-filtri__group cral-fe-filtri__group--cerca">
+                    <span class="cral-fe-filtri__label" aria-hidden="true">&#128269;</span>
+                    <input
+                        type="text"
+                        name="cfe_cerca"
+                        value="<?php echo esc_attr( $f_cerca ); ?>"
+                        placeholder="Cerca evento…"
+                        class="cral-fe-filtri__input"
+                        autocomplete="off"
+                    >
+                </div>
+
+                <!-- Stato -->
+                <div class="cral-fe-filtri__group">
+                    <select name="cfe_stato" class="cral-fe-filtri__select">
+                        <option value="">Tutti gli stati</option>
+                        <?php foreach ( $stati as $val => $lbl ) : ?>
+                        <option value="<?php echo esc_attr( $val ); ?>" <?php selected( $f_stato, $val ); ?>>
+                            <?php echo esc_html( $lbl ); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <!-- Categoria -->
+                <?php if ( ! empty( $categorie ) && ! is_wp_error( $categorie ) ) : ?>
+                <div class="cral-fe-filtri__group">
+                    <select name="cfe_cat" class="cral-fe-filtri__select">
+                        <option value="">Tutte le categorie</option>
+                        <?php foreach ( $categorie as $cat ) : ?>
+                        <option value="<?php echo esc_attr( $cat->slug ); ?>" <?php selected( $f_cat, $cat->slug ); ?>>
+                            <?php echo esc_html( $cat->name ); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php endif; ?>
+
+                <!-- Data da -->
+                <div class="cral-fe-filtri__group cral-fe-filtri__group--date">
+                    <span class="cral-fe-filtri__label" aria-hidden="true">&#128197;</span>
+                    <input
+                        type="date"
+                        name="cfe_data_da"
+                        value="<?php echo esc_attr( $f_data_da ); ?>"
+                        class="cral-fe-filtri__input cral-fe-filtri__input--date"
+                        title="Data da"
+                    >
+                </div>
+
+                <!-- Data a -->
+                <div class="cral-fe-filtri__group cral-fe-filtri__group--date">
+                    <span class="cral-fe-filtri__label" aria-hidden="true">&#8594;</span>
+                    <input
+                        type="date"
+                        name="cfe_data_a"
+                        value="<?php echo esc_attr( $f_data_a ); ?>"
+                        class="cral-fe-filtri__input cral-fe-filtri__input--date"
+                        title="Data a"
+                    >
+                </div>
+
+                <!-- Azioni -->
+                <div class="cral-fe-filtri__group cral-fe-filtri__group--actions">
+                    <button type="submit" class="cral-fe-filtri__btn cral-fe-filtri__btn--submit">
+                        Filtra
+                    </button>
+                    <a
+                        href="<?php echo esc_url( strtok( $action_url, '?' ) ); ?>"
+                        class="cral-fe-filtri__btn cral-fe-filtri__btn--reset<?php echo $has_active ? '' : ' cral-fe-filtri__btn--reset-hidden'; ?>"
+                        aria-label="Rimuovi filtri"
+                        data-cral-reset="1"
+                    >&#10005;</a>
+                </div>
+
+            </div>
+        </form>
+
+        <script>
+        (function () {
+            var LOOP_ID   = 'cral-loop-target';
+            var DEBOUNCE  = 500;
+            var timer;
+
+            function getLoop() {
+                return document.getElementById(LOOP_ID);
+            }
+
+            function buildUrl(form) {
+                var params = new URLSearchParams();
+                var data   = new FormData(form);
+                data.forEach(function (val, key) {
+                    if (val && val.trim()) params.set(key, val.trim());
+                });
+                var base = window.location.pathname;
+                var qs   = params.toString();
+                return qs ? base + '?' + qs : base;
+            }
+
+            function fetchLoop(url) {
+                var loop = getLoop();
+                if (!loop) return;
+
+                loop.classList.add('cral-loop--loading');
+
+                fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (r) { return r.text(); })
+                    .then(function (html) {
+                        var parser  = new DOMParser();
+                        var doc     = parser.parseFromString(html, 'text/html');
+                        var newLoop = doc.getElementById(LOOP_ID);
+                        if (newLoop) {
+                            loop.innerHTML = newLoop.innerHTML;
+                        } else {
+                            // nessun risultato
+                            loop.innerHTML = '<p class="cral-loop-empty">Nessun evento trovato per i filtri selezionati.</p>';
+                        }
+                        loop.classList.remove('cral-loop--loading');
+                        history.pushState({}, '', url);
+                        updateResetBtn(url);
+                    })
+                    .catch(function () {
+                        loop.classList.remove('cral-loop--loading');
+                    });
+            }
+
+            function updateResetBtn(url) {
+                var resetBtn = document.querySelector('[data-cral-reset]');
+                if (!resetBtn) return;
+                var hasFilters = url.indexOf('?') !== -1 && url.length > window.location.pathname.length;
+                resetBtn.classList.toggle('cral-fe-filtri__btn--reset-hidden', !hasFilters);
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                var form = document.querySelector('form[data-cral-ajax-filter]');
+                if (!form) return;
+
+                // Selects: cambio immediato con piccolo debounce.
+                form.querySelectorAll('select, input[type="date"]').forEach(function (el) {
+                    el.addEventListener('change', function () {
+                        clearTimeout(timer);
+                        timer = setTimeout(function () { fetchLoop(buildUrl(form)); }, 200);
+                    });
+                });
+
+                // Input testo: debounce più lungo.
+                form.querySelectorAll('input[type="text"]').forEach(function (el) {
+                    el.addEventListener('input', function () {
+                        clearTimeout(timer);
+                        timer = setTimeout(function () { fetchLoop(buildUrl(form)); }, DEBOUNCE);
+                    });
+                });
+
+                // Submit.
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    clearTimeout(timer);
+                    fetchLoop(buildUrl(form));
+                });
+
+                // Reset.
+                var resetBtn = form.querySelector('[data-cral-reset]');
+                if (resetBtn) {
+                    resetBtn.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        form.reset();
+                        fetchLoop(window.location.pathname);
+                    });
+                }
+            });
+        })();
+        </script>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * Hook Elementor query ID: cral_eventi_filtrati
+     * Filtra il Loop Grid in base ai parametri GET del form frontend.
+     *
+     * @param \WP_Query $query Query Elementor da modificare.
+     */
+    public function query_eventi_filtrati( $query ) {
+        $now_dt    = gmdate( 'Y-m-d H:i:s' );
+        $today     = gmdate( 'Y-m-d' );
+        $meta_q    = array( 'relation' => 'AND' );
+
+        $f_cerca   = isset( $_GET['cfe_cerca'] )   ? sanitize_text_field( wp_unslash( $_GET['cfe_cerca'] ) )   : ''; // phpcs:ignore
+        $f_stato   = isset( $_GET['cfe_stato'] )   ? sanitize_text_field( wp_unslash( $_GET['cfe_stato'] ) )   : ''; // phpcs:ignore
+        $f_cat     = isset( $_GET['cfe_cat'] )     ? sanitize_text_field( wp_unslash( $_GET['cfe_cat'] ) )     : ''; // phpcs:ignore
+        $f_data_da = isset( $_GET['cfe_data_da'] ) ? sanitize_text_field( wp_unslash( $_GET['cfe_data_da'] ) ) : ''; // phpcs:ignore
+        $f_data_a  = isset( $_GET['cfe_data_a'] )  ? sanitize_text_field( wp_unslash( $_GET['cfe_data_a'] ) )  : ''; // phpcs:ignore
+
+        $query->set( 'post_type', 'evento' );
+        $query->set( 'post_status', 'publish' );
+
+        // Filtro stato badge.
+        switch ( $f_stato ) {
+            case 'concluso':
+                $meta_q[] = array(
+                    'relation' => 'OR',
+                    array( 'key' => '_cral_evento_stato', 'value' => 'concluso', 'compare' => '=' ),
+                    array( 'key' => '_cral_evento_data',  'value' => $now_dt,    'compare' => '<', 'type' => 'DATETIME' ),
+                );
+                break;
+            case 'soldout':
+                $meta_q[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
+                $meta_q[] = array( 'key' => '_cral_evento_data',  'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
+                $meta_q[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '<=', 'type' => 'NUMERIC' );
+                break;
+            case 'chiuse':
+                $meta_q[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
+                $meta_q[] = array( 'key' => '_cral_evento_data',  'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
+                $meta_q[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
+                $meta_q[] = array( 'key' => '_cral_evento_data_iscrizione', 'value' => $today, 'compare' => '<', 'type' => 'DATE' );
+                break;
+            case 'presto':
+                $meta_q[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
+                $meta_q[] = array( 'key' => '_cral_evento_data',  'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
+                $meta_q[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
+                $meta_q[] = array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => $today, 'compare' => '>', 'type' => 'DATE' );
+                break;
+            case 'aperto':
+                $meta_q[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
+                $meta_q[] = array( 'key' => '_cral_evento_data',  'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
+                $meta_q[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
+                $meta_q[] = array(
+                    'relation' => 'OR',
+                    array( 'key' => '_cral_evento_data_iscrizione', 'compare' => 'NOT EXISTS' ),
+                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => '', 'compare' => '=' ),
+                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => $today, 'compare' => '>=', 'type' => 'DATE' ),
+                );
+                $meta_q[] = array(
+                    'relation' => 'OR',
+                    array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'compare' => 'NOT EXISTS' ),
+                    array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => '', 'compare' => '=' ),
+                    array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => $today, 'compare' => '<=', 'type' => 'DATE' ),
+                );
+                break;
+            default:
+                // Nessun filtro stato: ordina per data ASC.
+                break;
+        }
+
+        // Filtro data da / a.
+        if ( $f_data_da && $f_data_a ) {
+            $meta_q[] = array( 'key' => '_cral_evento_data', 'value' => array( $f_data_da . ' 00:00:00', $f_data_a . ' 23:59:59' ), 'compare' => 'BETWEEN', 'type' => 'DATETIME' );
+        } elseif ( $f_data_da ) {
+            $meta_q[] = array( 'key' => '_cral_evento_data', 'value' => $f_data_da . ' 00:00:00', 'compare' => '>=', 'type' => 'DATETIME' );
+        } elseif ( $f_data_a ) {
+            $meta_q[] = array( 'key' => '_cral_evento_data', 'value' => $f_data_a . ' 23:59:59', 'compare' => '<=', 'type' => 'DATETIME' );
+        }
+
+        if ( count( $meta_q ) > 1 ) {
+            $query->set( 'meta_query', $meta_q );
+        }
+
+        // Ordinamento per data evento ASC.
+        $query->set( 'meta_key', '_cral_evento_data' );
+        $query->set( 'orderby', 'meta_value' );
+        $query->set( 'order', 'ASC' );
+
+        // Filtro categoria.
+        if ( $f_cat ) {
+            $query->set( 'tax_query', array(
+                array( 'taxonomy' => 'categoria_evento', 'field' => 'slug', 'terms' => $f_cat ),
+            ) );
+        }
+
+        // Ricerca testuale.
+        if ( $f_cerca ) {
+            $query->set( 's', $f_cerca );
+        }
     }
 
     private function acc_prezzo( $atts, $meta_key ) {
