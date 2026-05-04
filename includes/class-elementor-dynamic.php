@@ -44,6 +44,7 @@ class Elementor_Dynamic {
         add_shortcode( 'cral_evento_categoria', array( $this, 'evento_categoria' ) );
         add_shortcode( 'cral_evento_categoria_slug', array( $this, 'evento_categoria_slug' ) );
         add_shortcode( 'cral_evento_categoria_link', array( $this, 'evento_categoria_link' ) );
+        add_shortcode( 'cral_evento_badge', array( $this, 'evento_badge' ) );
 
         // Hook query Elementor: loop eventi prenotati dal socio loggato.
         add_action( 'elementor/query/cral_eventi_prenotati', array( $this, 'query_eventi_prenotati' ) );
@@ -529,6 +530,68 @@ class Elementor_Dynamic {
         }
         $link = get_term_link( $terms[0] );
         return is_wp_error( $link ) ? '' : esc_url( $link );
+    }
+
+    /**
+     * Shortcode [cral_evento_badge] — badge stato evento dinamico.
+     * Funziona nel Loop Grid di Elementor (usa il post corrente).
+     */
+    public function evento_badge( $atts ) {
+        $event_id = $this->get_event_id( $atts );
+        if ( $event_id <= 0 ) {
+            return '';
+        }
+
+        $stato           = (string) get_post_meta( $event_id, '_cral_evento_stato', true );
+        $data_raw        = (string) get_post_meta( $event_id, '_cral_evento_data', true );
+        $data_iscr_raw   = (string) get_post_meta( $event_id, '_cral_evento_data_iscrizione', true );
+        $data_ap_raw     = (string) get_post_meta( $event_id, '_cral_evento_data_apertura_iscrizioni', true );
+        $posti_residui   = (int)    get_post_meta( $event_id, '_cral_evento_posti_residui', true );
+        $posti_totali    = (int)    get_post_meta( $event_id, '_cral_evento_posti_totali', true );
+
+        $now         = time();
+        $ts_evento   = $data_raw      ? strtotime( $data_raw )      : 0;
+        $ts_scadenza = $data_iscr_raw ? strtotime( $data_iscr_raw ) : 0;
+        $ts_apertura = $data_ap_raw   ? strtotime( $data_ap_raw )   : 0;
+        $fmt         = static function( $ts ) { return $ts ? wp_date( 'd/m/Y', $ts ) : ''; };
+
+        $is_annullato   = ( 'annullato' === $stato );
+        $is_concluso    = ( 'concluso' === $stato ) || ( $ts_evento > 0 && $ts_evento < $now );
+        $is_soldout     = ( ! $is_annullato && ! $is_concluso && $posti_residui <= 0 );
+        $is_chiuse      = ( ! $is_annullato && ! $is_concluso && ! $is_soldout && $ts_scadenza > 0 && $ts_scadenza < $now );
+        $is_non_ancora  = ( ! $is_annullato && ! $is_concluso && ! $is_soldout && ! $is_chiuse && $ts_apertura > 0 && $ts_apertura > $now );
+
+        if ( $is_annullato ) {
+            $label = 'Evento annullato'; $sub = '';
+            $mod   = 'annullato';
+        } elseif ( $is_concluso ) {
+            $n_part = $posti_totali - $posti_residui;
+            $label  = 'Evento concluso'; $sub = $n_part > 0 ? 'Partecipanti: ' . $n_part : '';
+            $mod    = 'concluso';
+        } elseif ( $is_soldout ) {
+            $label = 'Sold out'; $sub = 'Posti disponibili: 0';
+            $mod   = 'soldout';
+        } elseif ( $is_chiuse ) {
+            $label = 'Iscrizioni chiuse'; $sub = $ts_scadenza ? 'Scadute il ' . $fmt( $ts_scadenza ) : '';
+            $mod   = 'chiuse';
+        } elseif ( $is_non_ancora ) {
+            $label = 'Evento pubblicato'; $sub = $ts_apertura ? 'Le iscrizioni aprono il ' . $fmt( $ts_apertura ) : '';
+            $mod   = 'presto';
+        } else {
+            $label = 'Iscrizioni aperte'; $sub = $ts_scadenza ? 'fino al ' . $fmt( $ts_scadenza ) : '';
+            $mod   = 'aperto';
+        }
+
+        ob_start();
+        ?>
+        <div class="cral-scheda__badge cral-scheda__badge--<?php echo esc_attr( $mod ); ?>">
+            <span class="cral-scheda__badge-title"><?php echo esc_html( $label ); ?></span>
+            <?php if ( $sub ) : ?>
+            <span class="cral-scheda__badge-sub"><?php echo esc_html( $sub ); ?></span>
+            <?php endif; ?>
+        </div>
+        <?php
+        return ob_get_clean();
     }
 
     private function acc_prezzo( $atts, $meta_key ) {

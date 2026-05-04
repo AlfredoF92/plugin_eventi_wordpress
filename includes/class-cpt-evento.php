@@ -448,14 +448,43 @@ class CPT_Evento {
                 echo esc_html( get_post_meta( $post_id, '_cral_evento_luogo', true ) );
                 break;
             case 'cral_evento_stato':
-                $stato  = get_post_meta( $post_id, '_cral_evento_stato', true );
-                $labels = array(
-                    'bozza'      => '<span style="color:#888;">Bozza</span>',
-                    'pubblicato' => '<span style="color:#46b450;">Pubblicato</span>',
-                    'concluso'   => '<span style="color:#555;">Concluso</span>',
-                    'annullato'  => '<span style="color:#dc3232;">Annullato</span>',
-                );
-                echo wp_kses( $labels[ $stato ] ?? '—', array( 'span' => array( 'style' => array() ) ) );
+                $stato         = (string) get_post_meta( $post_id, '_cral_evento_stato', true );
+                $data_raw      = (string) get_post_meta( $post_id, '_cral_evento_data', true );
+                $data_iscr     = (string) get_post_meta( $post_id, '_cral_evento_data_iscrizione', true );
+                $data_ap       = (string) get_post_meta( $post_id, '_cral_evento_data_apertura_iscrizioni', true );
+                $posti_res     = (int)    get_post_meta( $post_id, '_cral_evento_posti_residui', true );
+                $posti_tot     = (int)    get_post_meta( $post_id, '_cral_evento_posti_totali', true );
+
+                $now           = time();
+                $ts_ev         = $data_raw  ? strtotime( $data_raw )  : 0;
+                $ts_scad       = $data_iscr ? strtotime( $data_iscr ) : 0;
+                $ts_ap         = $data_ap   ? strtotime( $data_ap )   : 0;
+                $fbd           = static function( $ts ) { return $ts ? wp_date( 'd/m/Y', $ts ) : ''; };
+
+                $is_ann   = ( 'annullato' === $stato );
+                $is_conc  = ( 'concluso' === $stato ) || ( $ts_ev > 0 && $ts_ev < $now );
+                $is_sold  = ( ! $is_ann && ! $is_conc && $posti_res <= 0 );
+                $is_chius = ( ! $is_ann && ! $is_conc && ! $is_sold && $ts_scad > 0 && $ts_scad < $now );
+                $is_prest = ( ! $is_ann && ! $is_conc && ! $is_sold && ! $is_chius && $ts_ap > 0 && $ts_ap > $now );
+
+                if ( $is_ann ) {
+                    $bl = 'Evento annullato'; $bs = ''; $bmod = 'annullato';
+                } elseif ( $is_conc ) {
+                    $n  = $posti_tot - $posti_res;
+                    $bl = 'Evento concluso'; $bs = $n > 0 ? 'Partecipanti: ' . $n : ''; $bmod = 'concluso';
+                } elseif ( $is_sold ) {
+                    $bl = 'Sold out'; $bs = 'Posti disponibili: 0'; $bmod = 'soldout';
+                } elseif ( $is_chius ) {
+                    $bl = 'Iscrizioni chiuse'; $bs = $ts_scad ? 'Scadute il ' . $fbd( $ts_scad ) : ''; $bmod = 'chiuse';
+                } elseif ( $is_prest ) {
+                    $bl = 'Evento pubblicato'; $bs = $ts_ap ? 'Iscrizioni il ' . $fbd( $ts_ap ) : ''; $bmod = 'presto';
+                } else {
+                    $bl = 'Iscrizioni aperte'; $bs = $ts_scad ? 'fino al ' . $fbd( $ts_scad ) : ''; $bmod = 'aperto';
+                }
+                echo '<div class="cral-scheda__badge cral-scheda__badge--' . esc_attr( $bmod ) . ' cral-list-badge">';
+                echo '<span class="cral-scheda__badge-title">' . esc_html( $bl ) . '</span>';
+                if ( $bs ) echo '<span class="cral-scheda__badge-sub">' . esc_html( $bs ) . '</span>';
+                echo '</div>';
                 break;
             case 'cral_evento_posti_res':
                 $residui = get_post_meta( $post_id, '_cral_evento_posti_residui', true );
@@ -542,25 +571,18 @@ class CPT_Evento {
                     <input type="text" name="cral_f_cerca" value="<?php echo esc_attr( $f_cerca ); ?>" placeholder="Titolo evento…" class="cral-filtro-input">
                 </div>
 
-                <!-- Stato -->
+                <!-- Stato badge dinamico -->
                 <div class="cral-filtro-group">
-                    <label class="cral-filtro-label">&#9873; Stato</label>
+                    <label class="cral-filtro-label">&#9873; Stato evento</label>
                     <select name="cral_f_stato" class="cral-filtro-select">
                         <option value="">Tutti gli stati</option>
-                        <option value="pubblicato" <?php selected( $f_stato, 'pubblicato' ); ?>>Pubblicato</option>
-                        <option value="bozza"      <?php selected( $f_stato, 'bozza' ); ?>>Bozza</option>
-                        <option value="concluso"   <?php selected( $f_stato, 'concluso' ); ?>>Concluso</option>
-                        <option value="annullato"  <?php selected( $f_stato, 'annullato' ); ?>>Annullato</option>
-                    </select>
-                </div>
-
-                <!-- Posti -->
-                <div class="cral-filtro-group">
-                    <label class="cral-filtro-label">&#128065; Disponibilità</label>
-                    <select name="cral_f_posti" class="cral-filtro-select">
-                        <option value="">Tutti</option>
-                        <option value="disponibili" <?php selected( $f_posti, 'disponibili' ); ?>>Con posti disponibili</option>
-                        <option value="soldout"     <?php selected( $f_posti, 'soldout' ); ?>>Sold out</option>
+                        <option value="aperto"    <?php selected( $f_stato, 'aperto' ); ?>>&#128994; Iscrizioni aperte</option>
+                        <option value="presto"    <?php selected( $f_stato, 'presto' ); ?>>&#128309; Evento pubblicato (non ancora aperto)</option>
+                        <option value="chiuse"    <?php selected( $f_stato, 'chiuse' ); ?>>&#128992; Iscrizioni chiuse</option>
+                        <option value="soldout"   <?php selected( $f_stato, 'soldout' ); ?>>&#128308; Sold out</option>
+                        <option value="concluso"  <?php selected( $f_stato, 'concluso' ); ?>>&#128308; Evento concluso</option>
+                        <option value="annullato" <?php selected( $f_stato, 'annullato' ); ?>>&#128308; Evento annullato</option>
+                        <option value="bozza"     <?php selected( $f_stato, 'bozza' ); ?>>&#9898; Bozza</option>
                     </select>
                 </div>
 
@@ -615,33 +637,61 @@ class CPT_Evento {
         }
 
         $meta_query = array( 'relation' => 'AND' );
+        $now_dt     = gmdate( 'Y-m-d H:i:s' );
 
-        // Filtro stato.
+        // Filtro stato badge dinamico.
         $f_stato = isset( $_GET['cral_f_stato'] ) ? sanitize_text_field( wp_unslash( $_GET['cral_f_stato'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
-        if ( $f_stato ) {
-            $meta_query[] = array(
-                'key'     => '_cral_evento_stato',
-                'value'   => $f_stato,
-                'compare' => '=',
-            );
-        }
+        switch ( $f_stato ) {
+            case 'annullato':
+                $meta_query[] = array( 'key' => '_cral_evento_stato', 'value' => 'annullato', 'compare' => '=' );
+                break;
 
-        // Filtro posti.
-        $f_posti = isset( $_GET['cral_f_posti'] ) ? sanitize_text_field( wp_unslash( $_GET['cral_f_posti'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification
-        if ( 'disponibili' === $f_posti ) {
-            $meta_query[] = array(
-                'key'     => '_cral_evento_posti_residui',
-                'value'   => '0',
-                'compare' => '>',
-                'type'    => 'NUMERIC',
-            );
-        } elseif ( 'soldout' === $f_posti ) {
-            $meta_query[] = array(
-                'key'     => '_cral_evento_posti_residui',
-                'value'   => '0',
-                'compare' => '<=',
-                'type'    => 'NUMERIC',
-            );
+            case 'bozza':
+                $meta_query[] = array( 'key' => '_cral_evento_stato', 'value' => 'bozza', 'compare' => '=' );
+                break;
+
+            case 'concluso':
+                // stato=concluso OPPURE data evento già passata (e non annullato).
+                $meta_query[] = array(
+                    'relation' => 'OR',
+                    array( 'key' => '_cral_evento_stato', 'value' => 'concluso', 'compare' => '=' ),
+                    array(
+                        'relation' => 'AND',
+                        array( 'key' => '_cral_evento_stato', 'value' => 'annullato', 'compare' => '!=' ),
+                        array( 'key' => '_cral_evento_data', 'value' => $now_dt, 'compare' => '<', 'type' => 'DATETIME' ),
+                    ),
+                );
+                break;
+
+            case 'soldout':
+                // posti_residui <= 0, non annullato, non concluso, data futura.
+                $meta_query[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
+                $meta_query[] = array( 'key' => '_cral_evento_data', 'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
+                $meta_query[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '<=', 'type' => 'NUMERIC' );
+                break;
+
+            case 'chiuse':
+                // Scadenza iscrizioni passata, posti > 0, data evento futura, non annullato/concluso.
+                $meta_query[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
+                $meta_query[] = array( 'key' => '_cral_evento_data', 'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
+                $meta_query[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
+                $meta_query[] = array( 'key' => '_cral_evento_data_iscrizione', 'value' => gmdate( 'Y-m-d' ), 'compare' => '<', 'type' => 'DATE' );
+                break;
+
+            case 'presto':
+                // Data apertura iscrizioni futura, non annullato/concluso, posti > 0.
+                $meta_query[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
+                $meta_query[] = array( 'key' => '_cral_evento_data', 'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
+                $meta_query[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
+                $meta_query[] = array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => gmdate( 'Y-m-d' ), 'compare' => '>', 'type' => 'DATE' );
+                break;
+
+            case 'aperto':
+                // Non annullato, non concluso, posti > 0, data futura, scadenza non passata, apertura non futura.
+                $meta_query[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
+                $meta_query[] = array( 'key' => '_cral_evento_data', 'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
+                $meta_query[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
+                break;
         }
 
         // Filtro data da / a.

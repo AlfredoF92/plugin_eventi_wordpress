@@ -29,6 +29,7 @@ class CPT_Socio
         // Fase 1.3 — Lista admin personalizzata.
         add_filter('manage_socio_posts_columns', array($this, 'set_columns'));
         add_action('manage_socio_posts_custom_column', array($this, 'render_column'), 10, 2);
+        add_filter('list_table_primary_column', array($this, 'set_primary_column'), 10, 2);
         add_action('admin_menu', array($this, 'register_scheda_menu'));
         add_filter('manage_edit-socio_sortable_columns', array($this, 'set_sortable_columns'));
         add_action('pre_get_posts', array($this, 'handle_sorting'));
@@ -160,13 +161,13 @@ class CPT_Socio
     {
         // Ricostruiamo l'array nell'ordine desiderato.
         return array(
-            'cb'            => $columns['cb'],
-            'cral_socio_id' => 'ID Socio',
-            'cral_cognome'  => 'Cognome',
-            'cral_nome'     => 'Nome',
-            'cral_email'    => 'Email',
-            'date'          => 'Data inserimento',
-            'cral_scheda'   => 'Scheda',
+            'cb'              => $columns['cb'],
+            'cral_socio_icon' => '',
+            'cral_cognome'    => 'Cognome e Nome',
+            'cral_socio_id'   => 'ID Socio',
+            'cral_email'      => 'Email',
+            'date'            => 'Data inserimento',
+            'cral_scheda'     => 'Scheda',
         );
     }
 
@@ -179,14 +180,34 @@ class CPT_Socio
     public function render_column($column, $post_id)
     {
         switch ($column) {
+            case 'cral_socio_icon':
+                $nome    = (string) get_post_meta( $post_id, '_cral_nome', true );
+                $cognome = (string) get_post_meta( $post_id, '_cral_cognome', true );
+                $initials = '';
+                if ( $nome )    $initials .= mb_strtoupper( mb_substr( $nome, 0, 1 ) );
+                if ( $cognome ) $initials .= mb_strtoupper( mb_substr( $cognome, 0, 1 ) );
+                if ( ! $initials ) $initials = '?';
+                // Colore deterministico dall'ID.
+                $colors  = array( '#1d4ed8','#0369a1','#0f766e','#7c3aed','#b45309','#be185d','#166534','#9f1239' );
+                $bg      = $colors[ $post_id % count( $colors ) ];
+                echo '<div style="
+                    width:40px;height:40px;border-radius:50%;
+                    background:' . esc_attr( $bg ) . ';
+                    color:#fff;font-size:.85rem;font-weight:700;
+                    display:flex;align-items:center;justify-content:center;
+                    letter-spacing:.03em;flex-shrink:0;
+                ">' . esc_html( $initials ) . '</div>';
+                break;
             case 'cral_socio_id':
                 echo esc_html(get_post_meta($post_id, '_cral_socio_id', true));
                 break;
             case 'cral_cognome':
-                echo esc_html(get_post_meta($post_id, '_cral_cognome', true));
-                break;
-            case 'cral_nome':
-                echo esc_html(get_post_meta($post_id, '_cral_nome', true));
+                $cognome_val = (string) get_post_meta( $post_id, '_cral_cognome', true );
+                $nome_val    = (string) get_post_meta( $post_id, '_cral_nome', true );
+                echo '<strong>' . esc_html( $cognome_val ) . '</strong>';
+                if ( $nome_val ) {
+                    echo ' <span style="color:#64748b;">' . esc_html( $nome_val ) . '</span>';
+                }
                 break;
             case 'cral_email':
                 $email = get_post_meta($post_id, '_cral_email', true);
@@ -320,6 +341,20 @@ class CPT_Socio
         if (count($meta_query) > 1) {
             $query->set('meta_query', $meta_query);
         }
+    }
+
+    /**
+     * Imposta cral_cognome come colonna primaria (porta le azioni di riga).
+     *
+     * @param string $default  Colonna primaria corrente.
+     * @param string $screen   ID dello screen corrente.
+     * @return string
+     */
+    public function set_primary_column( $default, $screen ) {
+        if ( 'edit-socio' === $screen ) {
+            return 'cral_cognome';
+        }
+        return $default;
     }
 
     /**
@@ -566,9 +601,27 @@ class CPT_Socio
                 <a href="<?php echo esc_url( $back_url ); ?>">&#8592; Torna alla lista soci</a>
             </p>
 
-            <h1 class="wp-heading-inline">
-                &#128100; <?php echo esc_html( $cognome . ' ' . $nome ); ?>
-                <span style="font-size:.6em; color:#666; font-weight:400;">(<?php echo esc_html( $socio_id_str ); ?>)</span>
+            <?php
+            // Avatar con iniziali (stesso stile della lista soci).
+            $initials_h = '';
+            if ( $nome )    $initials_h .= mb_strtoupper( mb_substr( $nome, 0, 1 ) );
+            if ( $cognome ) $initials_h .= mb_strtoupper( mb_substr( $cognome, 0, 1 ) );
+            if ( ! $initials_h ) $initials_h = '?';
+            $colors_h = array( '#1d4ed8','#0369a1','#0f766e','#7c3aed','#b45309','#be185d','#166534','#9f1239' );
+            $bg_h     = $colors_h[ $socio_post_id % count( $colors_h ) ];
+            ?>
+            <h1 class="wp-heading-inline" style="display:flex;align-items:center;gap:14px;">
+                <span style="
+                    width:52px;height:52px;border-radius:50%;
+                    background:<?php echo esc_attr( $bg_h ); ?>;
+                    color:#fff;font-size:1.1rem;font-weight:700;
+                    display:inline-flex;align-items:center;justify-content:center;
+                    flex-shrink:0;letter-spacing:.03em;
+                "><?php echo esc_html( $initials_h ); ?></span>
+                <span>
+                    <?php echo esc_html( $cognome . ' ' . $nome ); ?>
+                    <span style="font-size:.6em;color:#666;font-weight:400;">(<?php echo esc_html( $socio_id_str ); ?>)</span>
+                </span>
             </h1>
             <a href="<?php echo esc_url( $edit_url ); ?>" class="page-title-action">Modifica socio</a>
             <hr class="wp-header-end">
@@ -621,7 +674,7 @@ class CPT_Socio
             <table class="wp-list-table widefat fixed striped cral-ss-table">
                 <thead>
                     <tr>
-                        <th style="width:180px;">Evento</th>
+                        <th style="width:220px;">Evento</th>
                         <th style="width:90px;">Data evento</th>
                         <th style="width:80px;">Stato</th>
                         <th style="width:60px;">Biglietti</th>
@@ -665,9 +718,24 @@ class CPT_Socio
                         $acc_items[] = esc_html( $an ) . ( $at ? ' <em style="color:#888;font-size:.9em;">(' . esc_html( $at ) . ')</em>' : '' ) . '<span style="color:#555;">' . esc_html( $ap ) . '</span>';
                     }
                     $acc_list = $acc_items ? implode( '<br>', $acc_items ) : '<em style="color:#999;">—</em>';
+
+                    $ev_thumb_html = '';
+                    if ( $ev_id && has_post_thumbnail( $ev_id ) ) {
+                        $ev_thumb_html = get_the_post_thumbnail( $ev_id, array( 48, 48 ), array(
+                            'class' => 'cral-ss-ev-thumb',
+                            'style' => 'width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;',
+                        ) );
+                    } elseif ( $ev_id ) {
+                        $ev_thumb_html = '<div class="cral-ss-ev-thumb cral-ss-ev-thumb--placeholder" aria-hidden="true">&#128247;</div>';
+                    }
                 ?>
                     <tr>
-                        <td><strong><?php echo esc_html( $ev_titolo ); ?></strong></td>
+                        <td>
+                            <div class="cral-ss-evcell">
+                                <?php echo $ev_thumb_html ? $ev_thumb_html : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                <strong class="cral-ss-evcell__title"><?php echo esc_html( $ev_titolo ); ?></strong>
+                            </div>
+                        </td>
                         <td><?php echo esc_html( $ev_data_fmt ); ?></td>
                         <td><?php echo wp_kses_post( $stato_html ); ?></td>
                         <td style="text-align:center;"><?php echo esc_html( max( 1, $pren_biglietti ) ); ?></td>
