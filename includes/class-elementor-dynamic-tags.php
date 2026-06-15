@@ -173,6 +173,15 @@ class Elementor_Dynamic_Tags {
                 $dynamic_tags->register_tag( get_class( $tag_passati ) );
             }
         }
+
+        if ( class_exists( '\GEvent\Elementor_Dynamic_Tag_Evento_Contenuto' ) ) {
+            $tag_contenuto = new Elementor_Dynamic_Tag_Evento_Contenuto();
+            if ( method_exists( $dynamic_tags, 'register' ) ) {
+                $dynamic_tags->register( $tag_contenuto );
+            } elseif ( method_exists( $dynamic_tags, 'register_tag' ) ) {
+                $dynamic_tags->register_tag( get_class( $tag_contenuto ) );
+            }
+        }
      }
  }
 
@@ -228,6 +237,7 @@ if ( class_exists( '\Elementor\Core\DynamicTags\Tag' ) ) {
                         'riassunto'                => 'Riassunto',
                         'estratto'                 => 'Riassunto (legacy)',
                         'data'                     => 'Data evento',
+                        'data_estesa'              => 'Data evento estesa (es. Gio 12 maggio 2026)',
                         'data_iscrizione'          => 'Data scadenza iscrizioni',
                         'luogo'                    => 'Luogo',
                         'stato'                    => 'Stato',
@@ -341,6 +351,8 @@ if ( class_exists( '\Elementor\Core\DynamicTags\Tag' ) ) {
                     return $post ? wp_strip_all_tags( $post->post_excerpt ) : '';
                 case 'data':
                     return $this->format_event_date( $this->get_meta( $event_id, '_cral_evento_data' ), $date_format );
+                case 'data_estesa':
+                    return $this->format_event_date_estesa( $this->get_meta( $event_id, '_cral_evento_data' ) );
                 case 'data_iscrizione':
                     return $this->format_event_date( $this->get_meta( $event_id, '_cral_evento_data_iscrizione' ), $date_format ?: 'd/m/Y' );
                 case 'posti_riepilogo':
@@ -415,6 +427,38 @@ if ( class_exists( '\Elementor\Core\DynamicTags\Tag' ) ) {
                 return $raw;
             }
             return wp_date( $format ?: 'd/m/Y H:i', $timestamp );
+        }
+
+        /**
+         * Formatta la data evento in formato esteso italiano.
+         * Es: "Gio 12 maggio 2026"
+         *
+         * @param string $raw Data raw dal meta.
+         * @return string
+         */
+        private function format_event_date_estesa( $raw ) {
+            $raw = (string) $raw;
+            if ( '' === $raw ) {
+                return '';
+            }
+            $ts = strtotime( $raw );
+            if ( ! $ts ) {
+                return '';
+            }
+
+            $giorni = array( 1 => 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom' );
+            $mesi   = array(
+                1  => 'gennaio',   'febbraio', 'marzo',    'aprile',
+                'maggio',          'giugno',   'luglio',   'agosto',
+                'settembre',       'ottobre',  'novembre', 'dicembre',
+            );
+
+            $dow     = (int) gmdate( 'N', $ts );
+            $giorno  = (int) gmdate( 'j', $ts );
+            $mese    = (int) gmdate( 'n', $ts );
+            $anno    = gmdate( 'Y', $ts );
+
+            return $giorni[ $dow ] . ' ' . $giorno . ' ' . $mesi[ $mese ] . ' ' . $anno;
         }
 
         /**
@@ -1146,6 +1190,64 @@ if ( class_exists( '\Elementor\Core\DynamicTags\Tag' ) ) {
 
             $cache[ $socio_id ] = $output;
             echo esc_html( $output );
+        }
+    }
+
+    /**
+     * Tag dinamico WYSIWYG: contenuto formattato dell'evento (post_content).
+     * Mantiene titoli, paragrafi, grassetti e qualsiasi markup inserito nell'editor.
+     * Da usare con il widget "Editor di testo" di Elementor.
+     */
+    class Elementor_Dynamic_Tag_Evento_Contenuto extends \Elementor\Core\DynamicTags\Tag {
+
+        public function get_name() {
+            return 'cral-evento-contenuto';
+        }
+
+        public function get_title() {
+            return 'CRAL Evento - Contenuto formattato';
+        }
+
+        public function get_group() {
+            return 'cral-evento';
+        }
+
+        public function get_categories() {
+            $module = \Elementor\Modules\DynamicTags\Module::class;
+            if ( defined( $module . '::WYSIWYG_CATEGORY' ) ) {
+                return array( \Elementor\Modules\DynamicTags\Module::WYSIWYG_CATEGORY );
+            }
+            return array( \Elementor\Modules\DynamicTags\Module::TEXT_CATEGORY );
+        }
+
+        protected function register_controls() {
+            $this->add_control(
+                'event_id',
+                array(
+                    'label'       => 'ID evento (opzionale)',
+                    'type'        => \Elementor\Controls_Manager::NUMBER,
+                    'default'     => 0,
+                    'description' => 'Se 0 usa il post corrente del loop.',
+                )
+            );
+        }
+
+        public function render() {
+            $event_id = (int) $this->get_settings( 'event_id' );
+            if ( $event_id <= 0 ) {
+                $event_id = get_the_ID();
+            }
+            if ( $event_id <= 0 || 'evento' !== get_post_type( $event_id ) ) {
+                return;
+            }
+
+            $post = get_post( $event_id );
+            if ( ! $post || '' === $post->post_content ) {
+                return;
+            }
+
+            /* apply_filters('the_content') processa shortcode, autop, embed ecc. */
+            echo wp_kses_post( apply_filters( 'the_content', $post->post_content ) );
         }
     }
 }

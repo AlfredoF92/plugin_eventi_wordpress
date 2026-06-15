@@ -31,7 +31,7 @@ class Booking {
             'g-event-frontend',
             plugins_url( '../assets/css/frontend.css', __FILE__ ),
             array(),
-            '1.0.3'
+            '1.0.7'
         );
         wp_enqueue_style(
             'g-event-scheda',

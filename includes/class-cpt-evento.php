@@ -25,6 +25,7 @@ class CPT_Evento {
         add_action( 'carbon_fields_post_meta_container_saved', array( $this, 'init_posti_residui' ), 10, 2 );
         add_action( 'save_post_evento', array( $this, 'normalize_prices' ), 10, 3 );
         add_action( 'admin_footer', array( $this, 'toggle_companion_fields_script' ) );
+        add_action( 'admin_footer', array( $this, 'evento_publish_validation_script' ) );
 
         // Lista admin personalizzata.
         add_filter( 'manage_evento_posts_columns', array( $this, 'set_columns' ) );
@@ -173,12 +174,10 @@ class CPT_Evento {
                     ->set_attribute( 'type', 'number' )
                     ->set_attribute( 'min', '0' )
                     ->set_attribute( 'step', '0.01' )
-                    ->set_required( true )
                     ->set_help_text( 'Non puo essere maggiore del costo biglietto evento.' ),
                 Field::make( 'text', 'cral_evento_max_acc_socio', 'Max Accompagnatore Socio' )
                     ->set_attribute( 'type', 'number' )
-                    ->set_attribute( 'min', '0' )
-                    ->set_required( true ),
+                    ->set_attribute( 'min', '0' ),
             ) );
 
         // Accompagnatore Esterno.
@@ -198,12 +197,10 @@ class CPT_Evento {
                     ->set_attribute( 'type', 'number' )
                     ->set_attribute( 'min', '0' )
                     ->set_attribute( 'step', '0.01' )
-                    ->set_required( true )
                     ->set_help_text( 'Non puo essere maggiore del costo biglietto evento.' ),
                 Field::make( 'text', 'cral_evento_max_acc_esterno', 'Max Accompagnatore Esterno' )
                     ->set_attribute( 'type', 'number' )
-                    ->set_attribute( 'min', '0' )
-                    ->set_required( true ),
+                    ->set_attribute( 'min', '0' ),
             ) );
 
         // Accompagnatore Junior.
@@ -223,12 +220,10 @@ class CPT_Evento {
                     ->set_attribute( 'type', 'number' )
                     ->set_attribute( 'min', '0' )
                     ->set_attribute( 'step', '0.01' )
-                    ->set_required( true )
                     ->set_help_text( 'Non puo essere maggiore del costo biglietto evento.' ),
                 Field::make( 'text', 'cral_evento_max_acc_junior', 'Max Accompagnatore Junior' )
                     ->set_attribute( 'type', 'number' )
-                    ->set_attribute( 'min', '0' )
-                    ->set_required( true ),
+                    ->set_attribute( 'min', '0' ),
             ) );
     }
 
@@ -398,6 +393,135 @@ class CPT_Evento {
                 }
             }, 150);
         });
+        </script>
+        <?php
+    }
+
+    /**
+     * Script che intercetta il click su "Pubblica" e mostra i campi
+     * obbligatori ancora vuoti prima di lasciare inviare il form.
+     */
+    public function evento_publish_validation_script() {
+        $screen = get_current_screen();
+        if ( ! $screen || 'evento' !== $screen->post_type || 'post' !== $screen->base ) {
+            return;
+        }
+        ?>
+        <style>
+        #cral-req-notice {
+            display: none;
+            background: #fff3cd;
+            border-left: 4px solid #f5a623;
+            border-radius: 4px;
+            padding: 12px 16px;
+            margin: 12px 0 0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        #cral-req-notice strong {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: #333;
+        }
+        #cral-req-notice ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+        #cral-req-notice ul li {
+            color: #c0392b;
+            font-weight: 600;
+        }
+        #cral-req-notice .cral-req-hint {
+            margin-top: 6px;
+            color: #666;
+            font-size: 12px;
+        }
+        </style>
+        <script>
+        (function() {
+            'use strict';
+
+            /* Mappa: chiave Carbon Fields → etichetta leggibile */
+            var REQUIRED_FIELDS = [
+                { key: '_cral_evento_data',         label: 'Data e ora evento' },
+                { key: '_cral_evento_luogo',         label: 'Luogo' },
+                { key: '_cral_evento_stato',         label: 'Stato' },
+                { key: '_cral_evento_posti_totali',  label: 'Posti totali' },
+                { key: '_cral_evento_prezzo_base',   label: 'Costo biglietto evento (€)' },
+            ];
+
+            function getInputValue(key) {
+                /* CF Classic Editor: hidden input con name="carbon_fields_compact_input[KEY]" */
+                var sel = 'input[name="carbon_fields_compact_input[' + key + ']"],'
+                        + 'select[name="carbon_fields_compact_input[' + key + ']"]';
+                var el = document.querySelector(sel);
+                if (el) return el.value;
+
+                /* Fallback: cerca l'input visibile dentro il container CF */
+                var cfField = document.querySelector(
+                    '[data-field-name="' + key + '"] input:not([type="hidden"]),' +
+                    '[data-field-name="' + key + '"] select'
+                );
+                if (cfField) return cfField.value;
+
+                return null; /* non trovato: non bloccare */
+            }
+
+            function getMissingFields() {
+                var missing = [];
+                REQUIRED_FIELDS.forEach(function(f) {
+                    var val = getInputValue(f.key);
+                    if (val === null) return; /* input non trovato, salta */
+                    if (val === '' || val === null || val === undefined) {
+                        missing.push(f.label);
+                    }
+                });
+                return missing;
+            }
+
+            function showNotice(items) {
+                var notice = document.getElementById('cral-req-notice');
+                if (!notice) return;
+                var list = items.map(function(l) {
+                    return '<li>' + l + '</li>';
+                }).join('');
+                notice.innerHTML =
+                    '<strong>&#9888; Per pubblicare compila i seguenti campi obbligatori:</strong>'
+                    + '<ul>' + list + '</ul>'
+                    + '<p class="cral-req-hint">Scorri la pagina per trovare i campi evidenziati in rosso da Carbon Fields.</p>';
+                notice.style.display = 'block';
+                notice.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            function hideNotice() {
+                var notice = document.getElementById('cral-req-notice');
+                if (notice) notice.style.display = 'none';
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                /* Inserisce il div notice sotto il titolo del post */
+                var titleWrap = document.getElementById('titlediv');
+                if (titleWrap) {
+                    var notice = document.createElement('div');
+                    notice.id = 'cral-req-notice';
+                    titleWrap.insertAdjacentElement('afterend', notice);
+                }
+
+                var publishBtn = document.getElementById('publish');
+                if (!publishBtn) return;
+
+                publishBtn.addEventListener('click', function() {
+                    /* Controlla i campi PRIMA che CF faccia la sua validazione */
+                    var missing = getMissingFields();
+                    if (missing.length > 0) {
+                        showNotice(missing);
+                    } else {
+                        hideNotice();
+                    }
+                }, true /* capture: intercetta prima della validazione CF */);
+            });
+        })();
         </script>
         <?php
     }
@@ -679,18 +803,39 @@ class CPT_Evento {
                 break;
 
             case 'presto':
-                // Data apertura iscrizioni futura, non annullato/concluso, posti > 0.
+                // Apertura iscrizioni futura, non annullato/concluso, posti > 0, data futura.
                 $meta_query[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
                 $meta_query[] = array( 'key' => '_cral_evento_data', 'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
                 $meta_query[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
                 $meta_query[] = array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => gmdate( 'Y-m-d' ), 'compare' => '>', 'type' => 'DATE' );
+                // Scadenza iscrizioni non ancora passata (o non impostata).
+                $meta_query[] = array(
+                    'relation' => 'OR',
+                    array( 'key' => '_cral_evento_data_iscrizione', 'compare' => 'NOT EXISTS' ),
+                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => '', 'compare' => '=' ),
+                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => gmdate( 'Y-m-d' ), 'compare' => '>=', 'type' => 'DATE' ),
+                );
                 break;
 
             case 'aperto':
-                // Non annullato, non concluso, posti > 0, data futura, scadenza non passata, apertura non futura.
+                // Non annullato, non concluso, posti > 0, data futura.
                 $meta_query[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
                 $meta_query[] = array( 'key' => '_cral_evento_data', 'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
                 $meta_query[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
+                // Scadenza iscrizioni: non esiste, è vuota, oppure non è ancora passata.
+                $meta_query[] = array(
+                    'relation' => 'OR',
+                    array( 'key' => '_cral_evento_data_iscrizione', 'compare' => 'NOT EXISTS' ),
+                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => '', 'compare' => '=' ),
+                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => gmdate( 'Y-m-d' ), 'compare' => '>=', 'type' => 'DATE' ),
+                );
+                // Apertura iscrizioni: non esiste, è vuota, oppure è già arrivata (non ancora futura).
+                $meta_query[] = array(
+                    'relation' => 'OR',
+                    array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'compare' => 'NOT EXISTS' ),
+                    array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => '', 'compare' => '=' ),
+                    array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => gmdate( 'Y-m-d' ), 'compare' => '<=', 'type' => 'DATE' ),
+                );
                 break;
         }
 
