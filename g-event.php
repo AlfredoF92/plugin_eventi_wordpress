@@ -59,6 +59,7 @@ require_once __DIR__ . '/includes/class-logger.php';
 require_once __DIR__ . '/includes/class-demo-generator.php';
 require_once __DIR__ . '/includes/class-elementor-dynamic.php';
 require_once __DIR__ . '/includes/class-evento-scheda.php';
+require_once __DIR__ . '/includes/class-calendario-eventi.php';
 
 // Inizializza tutto dentro plugins_loaded.
 add_action( 'plugins_loaded', function() {
@@ -113,6 +114,10 @@ add_action( 'plugins_loaded', function() {
     // Scheda evento completa con form prenotazione.
     $evento_scheda = new \GEvent\Evento_Scheda();
     $evento_scheda->init();
+
+    // Calendario eventi mensile.
+    $calendario_eventi = new \GEvent\Calendario_Eventi();
+    $calendario_eventi->init();
 
 } );
 
