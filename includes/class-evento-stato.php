@@ -13,6 +13,16 @@ namespace GEvent;
 class Evento_Stato {
 
     /**
+     * Formatta una data con nome del giorno.
+     *
+     * @param int $timestamp Timestamp Unix.
+     * @return string
+     */
+    public static function format_data_esplicativa( $timestamp ) {
+        return wp_date( 'l d/m/Y \\a\\l\\l\\e H:i', $timestamp );
+    }
+
+    /**
      * Registra hook di sincronizzazione stato meta ↔ post_status.
      */
     public static function init() {
@@ -45,10 +55,9 @@ class Evento_Stato {
         }
 
         return sprintf(
-            /* translators: 1: data (gg/mm/aaaa), 2: ora (HH:MM) */
-            __( 'Programmato per il giorno %1$s alle ore %2$s', 'g-event' ),
-            wp_date( 'd/m/Y', $dt->getTimestamp() ),
-            wp_date( 'H:i', $dt->getTimestamp() )
+            /* translators: %s: data completa con giorno e ora */
+            __( 'Programmato per %s', 'g-event' ),
+            self::format_data_esplicativa( $dt->getTimestamp() )
         );
     }
 

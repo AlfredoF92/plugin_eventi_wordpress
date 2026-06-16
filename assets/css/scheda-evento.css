@@ -58,7 +58,7 @@
 .cral-scheda__badge--soldout  { background: #fee2e2; color: #991b1b; }
 .cral-scheda__badge--chiuse   { background: #ffedd5; color: #9a3412; }
 .cral-scheda__badge--presto   { background: #eff6ff; color: #1e40af; }
-.cral-scheda__badge--programmato { background: #e0e7ff; color: #1e3a8a; }
+.cral-scheda__badge--programmato { background: #fef9c3; color: #92400e; }
 .cral-scheda__badge--concluso { background: #fee2e2; color: #991b1b; }
 .cral-scheda__badge--annullato{ background: #fef9c3; color: #92400e; }
 

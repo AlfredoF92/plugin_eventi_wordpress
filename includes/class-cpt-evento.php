@@ -29,6 +29,7 @@ class CPT_Evento {
 
         // Lista admin personalizzata.
         add_filter( 'manage_evento_posts_columns', array( $this, 'set_columns' ) );
+        add_filter( 'manage_edit-evento_sortable_columns', array( $this, 'set_sortable_columns' ) );
         add_action( 'manage_evento_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
         add_filter( 'post_row_actions', array( $this, 'add_row_action_vedi_iscritti' ), 10, 2 );
 
@@ -538,14 +539,26 @@ class CPT_Evento {
             'cb'                        => $columns['cb'],
             'cral_evento_thumb'         => '',
             'title'                     => 'Titolo',
-            'cral_evento_data'          => 'Data',
-            'cral_evento_luogo'         => 'Luogo',
+            'date'                      => 'Data inserimento',
             'cral_evento_stato'         => 'Stato',
+            'cral_evento_data'          => 'Data dell\'evento',
+            'cral_evento_luogo'         => 'Luogo',
             'cral_evento_posti_res'     => 'Posti residui',
             'cral_evento_iscritti'      => 'Iscritti',
             'taxonomy-categoria_evento' => 'Categoria',
-            'date'                      => 'Data inserimento',
         );
+    }
+
+    /**
+     * Rende ordinabili le colonne data in lista eventi.
+     *
+     * @param array $columns Colonne ordinabili.
+     * @return array
+     */
+    public function set_sortable_columns( $columns ) {
+        $columns['cral_evento_data'] = 'cral_evento_data';
+        $columns['date']             = 'date';
+        return $columns;
     }
 
     /**
@@ -567,7 +580,7 @@ class CPT_Evento {
                 break;
             case 'cral_evento_data':
                 $data = get_post_meta( $post_id, '_cral_evento_data', true );
-                echo esc_html( $data ? wp_date( 'd/m/Y H:i', strtotime( $data ) ) : '—' );
+                echo esc_html( $data ? Evento_Stato::format_data_esplicativa( strtotime( $data ) ) : '—' );
                 break;
             case 'cral_evento_luogo':
                 echo esc_html( get_post_meta( $post_id, '_cral_evento_luogo', true ) );
@@ -596,7 +609,10 @@ class CPT_Evento {
                 if ( $is_ann ) {
                     $bl = 'Evento annullato'; $bs = ''; $bmod = 'annullato';
                 } elseif ( $is_prog ) {
-                    $bl = Evento_Stato::get_programmato_label( $post_id ); $bs = ''; $bmod = 'programmato';
+                    $dt = get_post_datetime( $post_id, 'date', 'local' );
+                    $bl = 'Programmato';
+                    $bs = $dt ? 'Pubblicazione: ' . Evento_Stato::format_data_esplicativa( $dt->getTimestamp() ) : '';
+                    $bmod = 'programmato';
                 } elseif ( $is_conc ) {
                     $n  = $posti_tot - $posti_res;
                     $bl = 'Evento concluso'; $bs = $n > 0 ? 'Partecipanti: ' . $n : ''; $bmod = 'concluso';
@@ -763,6 +779,13 @@ class CPT_Evento {
 
         if ( 'evento' !== $query->get( 'post_type' ) ) {
             return;
+        }
+
+        // Ordinamento colonna "Data dell'evento".
+        if ( 'cral_evento_data' === $query->get( 'orderby' ) ) {
+            $query->set( 'meta_key', '_cral_evento_data' );
+            $query->set( 'orderby', 'meta_value' );
+            $query->set( 'meta_type', 'DATETIME' );
         }
 
         $meta_query = array( 'relation' => 'AND' );

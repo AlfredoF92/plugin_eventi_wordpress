@@ -250,12 +250,19 @@ class Admin {
                                     </strong>
                                 </td>
                                 <td>
-                                    <?php echo esc_html( $data ? wp_date( 'd/m/Y H:i', strtotime( $data ) ) : '—' ); ?>
+                                    <?php echo esc_html( $data ? Evento_Stato::format_data_esplicativa( strtotime( $data ) ) : '—' ); ?>
                                 </td>
                                 <td>
                                     <?php
                                     if ( Evento_Stato::is_programmato( $evento->ID ) ) {
-                                        echo '<span style="color:#1e40af;">' . esc_html( Evento_Stato::get_programmato_label( $evento->ID ) ) . '</span>';
+                                        $dt = get_post_datetime( $evento->ID, 'date', 'local' );
+                                        $sub = $dt ? 'Pubblicazione: ' . Evento_Stato::format_data_esplicativa( $dt->getTimestamp() ) : '';
+                                        echo '<div class="cral-scheda__badge cral-scheda__badge--programmato cral-list-badge">';
+                                        echo '<span class="cral-scheda__badge-title">Programmato</span>';
+                                        if ( $sub ) {
+                                            echo '<span class="cral-scheda__badge-sub">' . esc_html( $sub ) . '</span>';
+                                        }
+                                        echo '</div>';
                                     } else {
                                         echo wp_kses( $stati_label[ $stato ] ?? '—', array( 'span' => array( 'style' => array() ) ) );
                                     }
