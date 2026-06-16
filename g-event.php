@@ -61,6 +61,7 @@ require_once __DIR__ . '/includes/class-demo-generator.php';
 require_once __DIR__ . '/includes/class-elementor-dynamic.php';
 require_once __DIR__ . '/includes/class-evento-scheda.php';
 require_once __DIR__ . '/includes/class-calendario-eventi.php';
+require_once __DIR__ . '/includes/class-calendario-admin.php';
 
 // Inizializza tutto dentro plugins_loaded.
 add_action( 'plugins_loaded', function() {
@@ -120,6 +121,9 @@ add_action( 'plugins_loaded', function() {
     // Calendario eventi mensile.
     $calendario_eventi = new \GEvent\Calendario_Eventi();
     $calendario_eventi->init();
+
+    $calendario_admin = new \GEvent\Calendario_Admin();
+    $calendario_admin->init_admin();
 
 } );
 

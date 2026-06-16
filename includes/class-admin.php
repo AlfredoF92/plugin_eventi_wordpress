@@ -13,6 +13,13 @@ namespace GEvent;
 class Admin {
 
     /**
+     * Evita header brandizzato duplicato nella stessa richiesta.
+     *
+     * @var bool
+     */
+    private static $branded_header_rendered = false;
+
+    /**
      * Registra gli hook WordPress.
      */
     public function init() {
@@ -87,7 +94,7 @@ class Admin {
             'g-event-admin',
             plugins_url( 'assets/css/admin.css', dirname( __FILE__ ) ),
             array(),
-            '1.0.3'
+            '1.0.4'
         );
 
     }
@@ -156,6 +163,20 @@ class Admin {
                 $page_title = 'Plugin CRAL BCC';
         }
 
+        self::render_branded_header( $page_title );
+    }
+
+    /**
+     * Barra bianca brandizzata: titolo a sinistra, logo BCC a destra.
+     *
+     * @param string $page_title Titolo pagina.
+     */
+    public static function render_branded_header( $page_title ) {
+        if ( self::$branded_header_rendered ) {
+            return;
+        }
+        self::$branded_header_rendered = true;
+
         $logo_url = plugins_url( 'assets/img/logo-bcc.png', dirname( __FILE__ ) );
         ?>
         <div class="cral-admin-page-header">
@@ -168,7 +189,7 @@ class Admin {
     }
 
     /**
-     * Renderizza la pagina dashboard con lista eventi.
+     * Renderizza la dashboard con lista eventi.
      */
     public function render_dashboard() {
         if ( ! current_user_can( 'manage_options' ) ) {

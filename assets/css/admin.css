@@ -106,7 +106,9 @@ body.post-type-socio  .wrap > h1:first-child {
 /* ── PULSANTI PRIMARI CRAL (Aggiungi evento + Vedi iscritti) ─────────────── */
 body.post-type-evento a.cral-btn-add-evento,
 body.post-type-evento a.page-title-action,
-body.post-type-evento a.cral-btn-iscritti {
+body.post-type-evento a.cral-btn-iscritti,
+body.g-event_page_g-event-calendario a.cral-btn-add-evento,
+body.g-event_page_g-event-calendario a.page-title-action {
     display: inline-flex !important;
     align-items: center;
     gap: 6px;
@@ -124,13 +126,16 @@ body.post-type-evento a.cral-btn-iscritti {
     transition: background .15s, box-shadow .15s;
 }
 /* Padding più generoso solo per il pulsante principale */
-body.post-type-evento a.page-title-action {
+body.post-type-evento a.page-title-action,
+body.g-event_page_g-event-calendario a.page-title-action {
     padding: 8px 20px !important;
     font-size: .9rem !important;
 }
 body.post-type-evento a.cral-btn-add-evento:hover,
 body.post-type-evento a.page-title-action:hover,
-body.post-type-evento a.cral-btn-iscritti:hover {
+body.post-type-evento a.cral-btn-iscritti:hover,
+body.g-event_page_g-event-calendario a.cral-btn-add-evento:hover,
+body.g-event_page_g-event-calendario a.page-title-action:hover {
     background: #002d66 !important;
     box-shadow: 0 4px 10px rgba(0,63,138,.35);
     color: #fff !important;
@@ -143,43 +148,39 @@ body.post-type-evento a.cral-btn-iscritti:hover {
     color: #fff;
 }
 
-/* ── TOOLBAR CALENDARIO ADMIN ────────────────────────────────────────────── */
-.cral-cal-admin-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid #e2e8f0;
+/* ── BARRA AZIONI CALENDARIO ADMIN ───────────────────────────────────────── */
+.cral-cal-admin-azioni {
+    margin-bottom: 16px;
 }
-.cral-cal-admin-toolbar__title {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #003f8a;
-    margin: 0;
-    line-height: 1.2;
-}
-.cral-cal-admin-toolbar .cral-btn-add-evento {
+
+.cral-cal-admin-add-btn {
     display: inline-flex !important;
     align-items: center;
-    gap: 6px;
-    background: #003f8a !important;
+    padding: 6px 14px !important;
+    font-size: .72rem !important;
+    font-weight: 500 !important;
+    gap: 5px;
+    background: #042875 !important;
     color: #fff !important;
-    border: none !important;
-    border-radius: 8px !important;
-    padding: 8px 20px !important;
-    font-size: .9rem !important;
-    font-weight: 600 !important;
-    line-height: 1.4 !important;
-    height: auto !important;
-    box-shadow: 0 2px 6px rgba(0,63,138,.25);
-    text-decoration: none;
-    transition: background .15s, box-shadow .15s;
+    border: 1px solid #042875 !important;
+    border-radius: 999px !important;
+    box-shadow: 0 2px 6px rgba(0, 63, 138, .2) !important;
+    text-decoration: none !important;
 }
-.cral-cal-admin-toolbar .cral-btn-add-evento:hover {
-    background: #002d66 !important;
-    box-shadow: 0 4px 10px rgba(0,63,138,.35);
+
+.cral-cal-admin-add-btn:hover,
+.cral-cal-admin-add-btn:focus-visible {
+    background: #031d57 !important;
+    border-color: #031d57 !important;
     color: #fff !important;
+    box-shadow: 0 3px 8px rgba(0, 63, 138, .28) !important;
+}
+
+.cral-cal-admin-add-btn .cral-add-icon {
+    font-size: 1.1em;
+    font-weight: 600;
+    line-height: 1;
+    color: #fff;
 }
 
 /* ── BADGE STATO NELLA LISTA EVENTI ADMIN ────────────────────────────────── */

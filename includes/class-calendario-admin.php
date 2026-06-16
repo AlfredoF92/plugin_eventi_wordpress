@@ -41,11 +41,46 @@ class Calendario_Admin extends Calendario_Eventi {
     }
 
     /**
-     * Asset CSS/JS caricati tramite Admin::enqueue_scripts.
-     * Questo metodo è mantenuto per compatibilità ma non fa nulla.
+     * Asset CSS/JS per la pagina admin Calendario.
+     *
+     * @param string $hook Hook della pagina corrente.
      */
     public function enqueue_admin_assets( $hook ) {
-        // enqueue gestito in Admin::enqueue_scripts
+        if ( 'g-event_page_g-event-calendario' !== $hook ) {
+            return;
+        }
+
+        $ver = '1.4.0';
+
+        wp_enqueue_style(
+            'g-event-scheda',
+            plugins_url( '../assets/css/scheda-evento.css', __FILE__ ),
+            array(),
+            $ver
+        );
+        wp_enqueue_style(
+            'g-event-calendario',
+            plugins_url( '../assets/css/calendario-eventi.css', __FILE__ ),
+            array( 'g-event-scheda' ),
+            $ver
+        );
+    }
+
+    /**
+     * Configurazione JS calendario admin.
+     *
+     * @return array<string, mixed>
+     */
+    protected function get_admin_script_config() {
+        return array(
+            'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+            'nonce'   => wp_create_nonce( 'cral_calendario_admin_mese' ),
+            'i18n'    => array(
+                'eventiGiorno' => __( 'Eventi del giorno', 'g-event' ),
+                'modifica'     => __( 'Modifica Evento', 'g-event' ),
+                'iscritti'     => __( 'Vedi iscritti', 'g-event' ),
+            ),
+        );
     }
 
     /**
@@ -64,21 +99,24 @@ class Calendario_Admin extends Calendario_Eventi {
 
         $events = $this->get_events_for_month_admin( $year, $month );
         $by_day = $this->group_events_by_day( $events );
-        $uid    = 'cral-cal-admin-' . wp_rand( 1000, 9999 );
-        $base   = plugin_dir_url( dirname( __FILE__ ) );
-        $ver    = '1.3.1';
-        $nonce  = wp_create_nonce( 'cral_calendario_admin_mese' );
-
+        $uid         = 'cral-cal-admin-' . wp_rand( 1000, 9999 );
+        $ver         = '1.4.0';
+        $admin_ver   = '1.0.5';
         $add_new_url = admin_url( 'post-new.php?post_type=evento' );
+        $js_cfg      = $this->get_admin_script_config();
+        $js_url      = plugins_url( '../assets/js/calendario-admin.js', __FILE__ );
+
+        Admin::render_branded_header( __( 'Calendario', 'g-event' ) );
         ?>
-        <link rel="stylesheet" href="<?php echo esc_url( $base . 'assets/css/scheda-evento.css?ver=' . $ver ); ?>">
-        <link rel="stylesheet" href="<?php echo esc_url( $base . 'assets/css/calendario-eventi.css?ver=' . $ver ); ?>">
+        <link rel="stylesheet" href="<?php echo esc_url( plugins_url( '../assets/css/admin.css', __FILE__ ) . '?ver=' . $admin_ver ); ?>">
+        <link rel="stylesheet" href="<?php echo esc_url( plugins_url( '../assets/css/scheda-evento.css', __FILE__ ) . '?ver=' . $ver ); ?>">
+        <link rel="stylesheet" href="<?php echo esc_url( plugins_url( '../assets/css/calendario-eventi.css', __FILE__ ) . '?ver=' . $ver ); ?>">
 
         <div class="wrap cral-cal-admin-wrap">
+            <h1><?php esc_html_e( 'Calendario', 'g-event' ); ?></h1>
 
-            <div class="cral-cal-admin-toolbar">
-                <h2 class="cral-cal-admin-toolbar__title"><?php esc_html_e( 'Calendario eventi', 'g-event' ); ?></h2>
-                <a href="<?php echo esc_url( $add_new_url ); ?>" class="cral-btn-add-evento">
+            <div class="cral-azioni-rapide cral-cal-admin-azioni">
+                <a href="<?php echo esc_url( $add_new_url ); ?>" class="cral-cal-list__action cral-cal-list__action--iscritti cral-cal-admin-add-btn">
                     <span class="cral-add-icon" aria-hidden="true">+</span>
                     <?php esc_html_e( 'Aggiungi nuovo evento', 'g-event' ); ?>
                 </a>
@@ -86,7 +124,9 @@ class Calendario_Admin extends Calendario_Eventi {
 
             <div class="cral-cal cral-cal--admin" id="<?php echo esc_attr( $uid ); ?>"
                  data-year="<?php echo esc_attr( (string) $year ); ?>"
-                 data-month="<?php echo esc_attr( (string) $month ); ?>">
+                 data-month="<?php echo esc_attr( (string) $month ); ?>"
+                 data-today-year="<?php echo esc_attr( (string) wp_date( 'Y' ) ); ?>"
+                 data-today-month="<?php echo esc_attr( (string) wp_date( 'n' ) ); ?>">
 
                 <div class="cral-cal__layout">
                     <section class="cral-cal__calendar-panel" aria-label="<?php esc_attr_e( 'Calendario eventi', 'g-event' ); ?>">
@@ -113,16 +153,15 @@ class Calendario_Admin extends Calendario_Eventi {
                         JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP
                     );
                 ?></script>
-            </div>
-        </div>
 
-        <script>
-        window.cralCalendarioAdmin = {
-            ajaxUrl: <?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>,
-            nonce: <?php echo wp_json_encode( $nonce ); ?>
-        };
-        </script>
-        <script src="<?php echo esc_url( $base . 'assets/js/calendario-admin.js?ver=' . $ver ); ?>"></script>
+                <?php echo $this->render_modal(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            </div>
+
+            <script>
+            window.cralCalendarioAdmin = <?php echo wp_json_encode( $js_cfg ); ?>;
+            </script>
+            <script src="<?php echo esc_url( add_query_arg( 'ver', $ver, $js_url ) ); ?>"></script>
+        </div>
         <?php
     }
 
@@ -204,6 +243,69 @@ class Calendario_Admin extends Calendario_Eventi {
     }
 
     /**
+     * Arricchisce i dati evento con URL admin.
+     *
+     * @param int $post_id ID evento.
+     * @return array<string, mixed>
+     */
+    protected function format_event( $post_id ) {
+        $event = parent::format_event( $post_id );
+
+        $event['edit_url'] = get_edit_post_link( $post_id, 'raw' );
+        $event['iscritti_url'] = add_query_arg(
+            array(
+                'page'      => 'g-event-prenotazioni-evento',
+                'evento_id' => $post_id,
+            ),
+            admin_url( 'admin.php' )
+        );
+
+        return $event;
+    }
+
+    /**
+     * Anni in cui esiste almeno un evento (admin: include bozze e programmati).
+     *
+     * @return int[]
+     */
+    protected function get_years_with_events_admin() {
+        $query = new \WP_Query(
+            array(
+                'post_type'      => 'evento',
+                'post_status'    => array( 'publish', 'future', 'draft', 'pending', 'private' ),
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+                'no_found_rows'  => true,
+                'meta_query'     => array(
+                    array(
+                        'key'     => '_cral_evento_data',
+                        'compare' => 'EXISTS',
+                    ),
+                ),
+            )
+        );
+
+        $years = array();
+        foreach ( $query->posts as $post_id ) {
+            $data_raw = (string) get_post_meta( $post_id, '_cral_evento_data', true );
+            if ( '' === $data_raw ) {
+                continue;
+            }
+            $ts = strtotime( $data_raw );
+            if ( ! $ts ) {
+                continue;
+            }
+            $years[ (int) wp_date( 'Y', $ts ) ] = true;
+        }
+        wp_reset_postdata();
+
+        $years = array_keys( $years );
+        rsort( $years, SORT_NUMERIC );
+
+        return $years;
+    }
+
+    /**
      * Navigazione admin con select mese/anno.
      *
      * @param int $year  Anno.
@@ -219,11 +321,22 @@ class Calendario_Admin extends Calendario_Eventi {
             'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
         );
 
-        $year_min = (int) wp_date( 'Y' ) - 5;
-        $year_max = (int) wp_date( 'Y' ) + 5;
+        $years = $this->get_years_with_events_admin();
+        if ( ! in_array( $year, $years, true ) ) {
+            $years[] = $year;
+            rsort( $years, SORT_NUMERIC );
+        }
+        if ( empty( $years ) ) {
+            $years = array( (int) wp_date( 'Y' ) );
+        }
+
+        $today_year  = (int) wp_date( 'Y' );
+        $today_month = (int) wp_date( 'n' );
+        $is_current  = ( $year === $today_year && $month === $today_month );
 
         ob_start();
         ?>
+        <div class="cral-cal__nav-admin-wrap">
         <div class="cral-cal__nav cral-cal__nav--admin">
             <button type="button" class="cral-cal__nav-btn cral-cal__nav-btn--prev" data-cal-prev
                     aria-label="<?php echo esc_attr( sprintf( __( 'Vai a %s', 'g-event' ), $prev['name'] ) ); ?>">
@@ -245,11 +358,11 @@ class Calendario_Admin extends Calendario_Eventi {
                 <label class="cral-cal__nav-select-wrap">
                     <span class="screen-reader-text"><?php esc_html_e( 'Anno', 'g-event' ); ?></span>
                     <select class="cral-cal__nav-select" data-cal-year-select>
-                        <?php for ( $y = $year_max; $y >= $year_min; $y-- ) : ?>
+                        <?php foreach ( $years as $y ) : ?>
                         <option value="<?php echo esc_attr( (string) $y ); ?>" <?php selected( $year, $y ); ?>>
                             <?php echo esc_html( (string) $y ); ?>
                         </option>
-                        <?php endfor; ?>
+                        <?php endforeach; ?>
                     </select>
                 </label>
             </div>
@@ -259,6 +372,14 @@ class Calendario_Admin extends Calendario_Eventi {
                 <span class="cral-cal__nav-btn-label"><?php echo esc_html( $next['name'] ); ?></span>
                 <span class="cral-cal__nav-btn-arrow" aria-hidden="true">&#8250;</span>
             </button>
+        </div>
+        <?php if ( ! $is_current ) : ?>
+        <div class="cral-cal__nav-today">
+            <button type="button" class="cral-cal__today-btn" data-cal-today>
+                <?php esc_html_e( 'Vai al mese corrente', 'g-event' ); ?>
+            </button>
+        </div>
+        <?php endif; ?>
         </div>
         <?php
         return ob_get_clean();
@@ -315,11 +436,11 @@ class Calendario_Admin extends Calendario_Eventi {
                 </div>
                 <div class="cral-cal-list__actions">
                     <?php if ( $edit_url ) : ?>
-                    <a href="<?php echo esc_url( $edit_url ); ?>" class="button button-small cral-cal-list__action">
+                    <a href="<?php echo esc_url( $edit_url ); ?>" class="cral-cal-list__action cral-cal-list__action--edit">
                         <?php esc_html_e( 'Modifica Evento', 'g-event' ); ?>
                     </a>
                     <?php endif; ?>
-                    <a href="<?php echo esc_url( $iscr_url ); ?>" class="button button-small button-primary cral-cal-list__action">
+                    <a href="<?php echo esc_url( $iscr_url ); ?>" class="cral-cal-list__action cral-cal-list__action--iscritti">
                         <?php esc_html_e( 'Vedi iscritti', 'g-event' ); ?>
                     </a>
                 </div>

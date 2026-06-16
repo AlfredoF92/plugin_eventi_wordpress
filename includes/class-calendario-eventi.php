@@ -34,7 +34,7 @@ class Calendario_Eventi {
     /**
      * @return Elementor_Dynamic
      */
-    private function dynamic() {
+    protected function dynamic() {
         if ( null === $this->dynamic ) {
             $this->dynamic = new Elementor_Dynamic();
         }
@@ -198,7 +198,7 @@ class Calendario_Eventi {
      * @param int $month Mese 1-12.
      * @return array<int, array<string, mixed>>
      */
-    private function get_events_for_month( $year, $month ) {
+    protected function get_events_for_month( $year, $month ) {
         $start = sprintf( '%04d-%02d-01 00:00:00', $year, $month );
         $last  = (int) wp_date( 't', strtotime( $start ) );
         $end   = sprintf( '%04d-%02d-%02d 23:59:59', $year, $month, $last );
@@ -243,7 +243,7 @@ class Calendario_Eventi {
      * @param int $post_id ID evento.
      * @return array<string, mixed>
      */
-    private function format_event( $post_id ) {
+    protected function format_event( $post_id ) {
         $post_id  = absint( $post_id );
         $data_raw = (string) get_post_meta( $post_id, '_cral_evento_data', true );
         $ts       = $data_raw ? strtotime( $data_raw ) : 0;
@@ -285,7 +285,7 @@ class Calendario_Eventi {
      * @param int $event_id ID evento.
      * @return array{code: string, label: string, pren_id?: int}
      */
-    private function get_socio_stato_evento( $event_id ) {
+    protected function get_socio_stato_evento( $event_id ) {
         $auth     = new Auth();
         $socio_id = $auth->get_current_socio();
 
@@ -347,7 +347,7 @@ class Calendario_Eventi {
      * @param string $class   Classe CSS img.
      * @return string
      */
-    private function render_thumb_html( $post_id, $class = '' ) {
+    protected function render_thumb_html( $post_id, $class = '' ) {
         $thumb = get_the_post_thumbnail(
             $post_id,
             'thumbnail',
@@ -369,7 +369,7 @@ class Calendario_Eventi {
      * @param array<int, array<string, mixed>> $events Eventi indicizzati per ID.
      * @return array<int, array<int, array<string, mixed>>>
      */
-    private function group_events_by_day( $events ) {
+    protected function group_events_by_day( $events ) {
         $by_day = array();
         foreach ( $events as $event ) {
             $day = (int) $event['day'];
@@ -390,7 +390,7 @@ class Calendario_Eventi {
      * @param int $month Mese 1-12.
      * @return string
      */
-    private function format_month_name( $year, $month ) {
+    protected function format_month_name( $year, $month ) {
         $ts = strtotime( sprintf( '%04d-%02d-01', $year, $month ) );
         if ( ! $ts ) {
             return '';
@@ -408,7 +408,7 @@ class Calendario_Eventi {
      * @param int $delta -1 precedente, +1 successivo.
      * @return array{year: int, month: int, name: string}
      */
-    private function adjacent_month( $year, $month, $delta ) {
+    protected function adjacent_month( $year, $month, $delta ) {
         $month += $delta;
         $year  = (int) $year;
 
@@ -432,7 +432,7 @@ class Calendario_Eventi {
      * @param int $month Mese.
      * @return string
      */
-    private function format_month_label( $year, $month ) {
+    protected function format_month_label( $year, $month ) {
         return $this->format_month_name( $year, $month ) . ' ' . wp_date( 'Y', strtotime( sprintf( '%04d-%02d-01', $year, $month ) ) );
     }
 
@@ -443,7 +443,7 @@ class Calendario_Eventi {
      * @param int $month Mese.
      * @return string
      */
-    private function render_list_title( $year, $month ) {
+    protected function render_list_title( $year, $month ) {
         $name = $this->format_month_name( $year, $month );
 
         return sprintf(
@@ -458,7 +458,7 @@ class Calendario_Eventi {
      * @param int $month Mese.
      * @return string
      */
-    private function render_calendar_nav( $year, $month ) {
+    protected function render_calendar_nav( $year, $month ) {
         $prev = $this->adjacent_month( $year, $month, -1 );
         $next = $this->adjacent_month( $year, $month, 1 );
 
@@ -488,7 +488,7 @@ class Calendario_Eventi {
      * @param int                                      $selected_day Giorno selezionato.
      * @return string
      */
-    private function render_calendar_grid( $year, $month, $by_day, $selected_day = 0 ) {
+    protected function render_calendar_grid( $year, $month, $by_day, $selected_day = 0 ) {
         $first_ts    = strtotime( sprintf( '%04d-%02d-01', $year, $month ) );
         $days_in_mon = (int) wp_date( 't', $first_ts );
         $start_dow   = (int) wp_date( 'N', $first_ts ); // 1 = lun … 7 = dom
@@ -575,7 +575,7 @@ class Calendario_Eventi {
      * @param int                              $highlight_day Giorno evidenziato.
      * @return string
      */
-    private function render_events_list( $events ) {
+    protected function render_events_list( $events ) {
         if ( empty( $events ) ) {
             return '<p class="cral-cal__empty">' . esc_html__( 'Nessun evento in questo mese.', 'g-event' ) . '</p>';
         }
@@ -619,7 +619,7 @@ class Calendario_Eventi {
     /**
      * @return string
      */
-    private function render_modal() {
+    protected function render_modal() {
         ob_start();
         ?>
         <div class="cral-cal-modal" data-cal-modal hidden>

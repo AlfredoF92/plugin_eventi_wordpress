@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var cfg = window.cralCalendario || {};
+    var cfg = window.cralCalendarioAdmin || {};
     var i18n = cfg.i18n || {};
 
     function parseEventsJson(root) {
@@ -14,16 +14,6 @@
         } catch (e) {
             return { byDay: {}, flat: [] };
         }
-    }
-
-    function indexEvents(flat) {
-        var map = {};
-        (flat || []).forEach(function (ev) {
-            if (ev && ev.id) {
-                map[String(ev.id)] = ev;
-            }
-        });
-        return map;
     }
 
     function escapeHtml(str) {
@@ -50,7 +40,7 @@
 
     function fetchMonth(root, year, month) {
         var body = new FormData();
-        body.append('action', 'cral_calendario_mese');
+        body.append('action', 'cral_calendario_admin_mese');
         body.append('nonce', cfg.nonce || '');
         body.append('year', String(year));
         body.append('month', String(month));
@@ -74,19 +64,120 @@
             });
     }
 
+    function clearActiveDay(root) {
+        root.querySelectorAll('.cral-cal__cell.is-active-day').forEach(function (el) {
+            el.classList.remove('is-active-day');
+        });
+    }
+
+    function setActiveDay(root, day) {
+        clearActiveDay(root);
+        var cell = root.querySelector('.cral-cal__cell[data-cal-day="' + day + '"]');
+        if (cell) {
+            cell.classList.add('is-active-day');
+        }
+    }
+
+    function closeModal(root) {
+        var modal = root.querySelector('[data-cal-modal]');
+        if (!modal) {
+            return;
+        }
+        modal.hidden = true;
+        document.body.classList.remove('cral-cal-modal-open');
+        clearActiveDay(root);
+    }
+
+    function renderDayEventItem(ev) {
+        var thumb = ev.thumb
+            ? '<img src="' + escapeHtml(ev.thumb) + '" alt="" class="cral-cal-day-item__thumb" loading="lazy">'
+            : '<span class="cral-cal-thumb cral-cal-thumb--placeholder cral-cal-day-item__thumb">&#127917;</span>';
+
+        var metaParts = [];
+        if (ev.ora) {
+            metaParts.push(ev.ora);
+        }
+        if (ev.luogo) {
+            metaParts.push(ev.luogo);
+        }
+
+        var actionsHtml = '<div class="cral-cal-day-item__footer cral-cal-day-item__footer--admin">';
+        if (ev.edit_url) {
+            actionsHtml += '<a href="' + escapeHtml(ev.edit_url) + '" class="cral-cal-list__action cral-cal-list__action--edit">' +
+                escapeHtml(i18n.modifica || 'Modifica Evento') + '</a>';
+        }
+        if (ev.iscritti_url) {
+            actionsHtml += '<a href="' + escapeHtml(ev.iscritti_url) + '" class="cral-cal-list__action cral-cal-list__action--iscritti">' +
+                escapeHtml(i18n.iscritti || 'Vedi iscritti') + '</a>';
+        }
+        actionsHtml += '</div>';
+
+        return '<article class="cral-cal-day-item cral-cal-day-item--admin">' +
+            '<div class="cral-cal-day-item__head">' +
+                '<span class="cral-cal-day-item__thumb-wrap">' + thumb + '</span>' +
+                '<div class="cral-cal-day-item__body">' +
+                    '<h4 class="cral-cal-day-item__title">' + escapeHtml(ev.title) + '</h4>' +
+                    (metaParts.length ? '<p class="cral-cal-day-item__meta">' + escapeHtml(metaParts.join(' · ')) + '</p>' : '') +
+                    (ev.badge_html ? '<div class="cral-cal-day-item__badge">' + ev.badge_html + '</div>' : '') +
+                '</div>' +
+            '</div>' +
+            actionsHtml +
+        '</article>';
+    }
+
+    function openDayModal(root, day) {
+        var events = getDayEvents(root, day);
+        if (!events.length) {
+            return;
+        }
+
+        var modal = root.querySelector('[data-cal-modal]');
+        if (!modal) {
+            return;
+        }
+
+        var titleEl = modal.querySelector('[data-cal-modal-day-title]');
+        var listEl = modal.querySelector('[data-cal-modal-day-list]');
+        var dayLabel = events[0].data_estesa || ((i18n.eventiGiorno || 'Eventi del giorno') + ' ' + day);
+
+        if (titleEl) {
+            titleEl.textContent = dayLabel;
+        }
+
+        if (listEl) {
+            listEl.innerHTML = events.map(renderDayEventItem).join('');
+        }
+
+        setActiveDay(root, day);
+        modal.hidden = false;
+        document.body.classList.add('cral-cal-modal-open');
+
+        var closeBtn = modal.querySelector('.cral-cal-modal__close');
+        if (closeBtn) {
+            closeBtn.focus();
+        }
+    }
+
+    function handleOpenDay(root, day) {
+        if (!day) {
+            return;
+        }
+        openDayModal(root, day);
+    }
+
     function applyMonthData(root, data) {
         root.dataset.year = String(data.year);
         root.dataset.month = String(data.month);
 
         if (data.navHtml) {
-            var nav = root.querySelector('.cral-cal__nav');
-            if (nav) {
-                nav.outerHTML = data.navHtml;
-            }
-        } else {
-            var label = root.querySelector('[data-cal-month-label]');
-            if (label && data.monthLabel) {
-                label.textContent = data.monthLabel;
+            var navWrap = root.querySelector('.cral-cal__nav-admin-wrap');
+            if (navWrap) {
+                navWrap.outerHTML = data.navHtml;
+            } else {
+                var nav = root.querySelector('.cral-cal__nav');
+                if (nav) {
+                    nav.outerHTML = data.navHtml;
+                }
             }
         }
 
@@ -113,123 +204,22 @@
             });
         }
 
-        root._cralEventsMap = indexEvents(data.eventsFlat || []);
         clearActiveDay(root);
     }
 
-    function clearActiveDay(root) {
-        root.querySelectorAll('.cral-cal__cell.is-active-day').forEach(function (el) {
-            el.classList.remove('is-active-day');
-        });
+    function getYearMonth(root) {
+        return {
+            year: parseInt(root.dataset.year, 10),
+            month: parseInt(root.dataset.month, 10)
+        };
     }
 
-    function setActiveDay(root, day) {
-        clearActiveDay(root);
-        var cell = root.querySelector('.cral-cal__cell[data-cal-day="' + day + '"]');
-        if (cell) {
-            cell.classList.add('is-active-day');
-        }
-    }
-
-    function renderDayEventItem(ev) {
-        var thumb = ev.thumb
-            ? '<img src="' + escapeHtml(ev.thumb) + '" alt="" class="cral-cal-day-item__thumb" loading="lazy">'
-            : '<span class="cral-cal-thumb cral-cal-thumb--placeholder cral-cal-day-item__thumb">&#127917;</span>';
-
-        var metaParts = [];
-        if (ev.ora) {
-            metaParts.push(ev.ora);
-        }
-        if (ev.luogo) {
-            metaParts.push(ev.luogo);
-        }
-
-        var socioHtml = '';
-        if (ev.socio_stato_label) {
-            socioHtml = '<span class="cral-cal-day-item__socio cral-cal-day-item__socio--' + escapeHtml(ev.socio_stato || 'default') + '">' +
-                escapeHtml(ev.socio_stato_label) + '</span>';
-        }
-
-        return '<article class="cral-cal-day-item">' +
-            '<div class="cral-cal-day-item__head">' +
-                '<span class="cral-cal-day-item__thumb-wrap">' + thumb + '</span>' +
-                '<div class="cral-cal-day-item__body">' +
-                    '<h4 class="cral-cal-day-item__title">' + escapeHtml(ev.title) + '</h4>' +
-                    (metaParts.length ? '<p class="cral-cal-day-item__meta">' + escapeHtml(metaParts.join(' · ')) + '</p>' : '') +
-                    (ev.badge_html ? '<div class="cral-cal-day-item__badge">' + ev.badge_html + '</div>' : '') +
-                    socioHtml +
-                '</div>' +
-            '</div>' +
-            '<div class="cral-cal-day-item__footer">' +
-                '<a href="' + escapeHtml(ev.url || '#') + '" class="cral-cal-day-item__cta">' +
-                    escapeHtml(i18n.goEvent || 'Vai all\'evento') +
-                    '<span class="cral-cal-day-item__cta-arrow" aria-hidden="true">&#8594;</span>' +
-                '</a>' +
-            '</div>' +
-        '</article>';
-    }
-
-    function openDayModal(root, day) {
-        var events = getDayEvents(root, day);
-        if (!events.length) {
-            return;
-        }
-
-        var modal = root.querySelector('[data-cal-modal]');
-        if (!modal) {
-            return;
-        }
-
-        var titleEl = modal.querySelector('[data-cal-modal-day-title]');
-        var listEl = modal.querySelector('[data-cal-modal-day-list]');
-
-        var dayLabel = events[0].data_estesa || ((i18n.eventiGiorno || 'Eventi del giorno') + ' ' + day);
-
-        if (titleEl) {
-            titleEl.textContent = dayLabel;
-        }
-
-        if (listEl) {
-            listEl.innerHTML = events.map(renderDayEventItem).join('');
-        }
-
-        setActiveDay(root, day);
-        modal.hidden = false;
-        document.body.classList.add('cral-cal-modal-open');
-
-        var closeBtn = modal.querySelector('.cral-cal-modal__close');
-        if (closeBtn) {
-            closeBtn.focus();
-        }
-    }
-
-    function closeModal(root) {
-        var modal = root.querySelector('[data-cal-modal]');
-        if (!modal) {
-            return;
-        }
-        modal.hidden = true;
-        document.body.classList.remove('cral-cal-modal-open');
-        clearActiveDay(root);
-    }
-
-    function changeMonth(root, delta) {
-        var year = parseInt(root.dataset.year, 10);
-        var month = parseInt(root.dataset.month, 10);
+    function loadMonth(root, year, month) {
         if (!year || !month) {
             return;
         }
 
         closeModal(root);
-
-        month += delta;
-        if (month < 1) {
-            month = 12;
-            year -= 1;
-        } else if (month > 12) {
-            month = 1;
-            year += 1;
-        }
 
         fetchMonth(root, year, month)
             .then(function (data) {
@@ -240,30 +230,29 @@
             });
     }
 
-    function handleOpenDay(root, day) {
-        if (!day) {
-            return;
+    function changeMonth(root, delta) {
+        var current = getYearMonth(root);
+        var year = current.year;
+        var month = current.month + delta;
+
+        if (month < 1) {
+            month = 12;
+            year -= 1;
+        } else if (month > 12) {
+            month = 1;
+            year += 1;
         }
-        openDayModal(root, day);
+
+        loadMonth(root, year, month);
     }
 
     function bindInteractive(root) {
-        if (root._cralBound) {
+        if (root._cralAdminBound) {
             return;
         }
-        root._cralBound = true;
-
-        var initial = parseEventsJson(root);
-        root._cralEventsMap = indexEvents(initial.flat || []);
+        root._cralAdminBound = true;
 
         root.addEventListener('click', function (e) {
-            var openDayBtn = e.target.closest('[data-cal-open-day]');
-            if (openDayBtn) {
-                e.preventDefault();
-                handleOpenDay(root, openDayBtn.getAttribute('data-cal-open-day'));
-                return;
-            }
-
             var card = e.target.closest('.cral-cal__event-card');
             if (card) {
                 e.preventDefault();
@@ -282,22 +271,45 @@
                 return;
             }
 
-            var prev = e.target.closest('[data-cal-prev]');
-            if (prev) {
+            if (e.target.closest('[data-cal-prev]')) {
                 changeMonth(root, -1);
                 return;
             }
 
-            var next = e.target.closest('[data-cal-next]');
-            if (next) {
+            if (e.target.closest('[data-cal-next]')) {
                 changeMonth(root, 1);
                 return;
             }
 
-            var close = e.target.closest('[data-cal-modal-close]');
-            if (close) {
+            if (e.target.closest('[data-cal-today]')) {
+                var todayYear = parseInt(root.dataset.todayYear, 10);
+                var todayMonth = parseInt(root.dataset.todayMonth, 10);
+                if (todayYear && todayMonth) {
+                    loadMonth(root, todayYear, todayMonth);
+                }
+                return;
+            }
+
+            if (e.target.closest('[data-cal-modal-close]')) {
                 closeModal(root);
             }
+        });
+
+        root.addEventListener('change', function (e) {
+            var monthSelect = e.target.closest('[data-cal-month-select]');
+            var yearSelect = e.target.closest('[data-cal-year-select]');
+
+            if (!monthSelect && !yearSelect) {
+                return;
+            }
+
+            var monthEl = root.querySelector('[data-cal-month-select]');
+            var yearEl = root.querySelector('[data-cal-year-select]');
+            if (!monthEl || !yearEl) {
+                return;
+            }
+
+            loadMonth(root, parseInt(yearEl.value, 10), parseInt(monthEl.value, 10));
         });
 
         root.addEventListener('keydown', function (e) {
@@ -324,15 +336,15 @@
         });
     }
 
-    function init() {
-        document.querySelectorAll('.cral-cal:not(.cral-cal--admin)').forEach(function (root) {
+    function boot() {
+        document.querySelectorAll('.cral-cal--admin').forEach(function (root) {
             bindInteractive(root);
         });
     }
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', boot);
     } else {
-        init();
+        boot();
     }
 })();
