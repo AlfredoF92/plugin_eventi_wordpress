@@ -596,15 +596,19 @@ class Elementor_Dynamic {
         $ts_apertura = $data_ap_raw   ? strtotime( $data_ap_raw )   : 0;
         $fmt         = static function( $ts ) { return $ts ? wp_date( 'd/m/Y', $ts ) : ''; };
 
-        $is_annullato   = ( 'annullato' === $stato );
-        $is_concluso    = ( 'concluso' === $stato ) || ( $ts_evento > 0 && $ts_evento < $now );
-        $is_soldout     = ( ! $is_annullato && ! $is_concluso && $posti_residui <= 0 );
-        $is_chiuse      = ( ! $is_annullato && ! $is_concluso && ! $is_soldout && $ts_scadenza > 0 && $ts_scadenza < $now );
-        $is_non_ancora  = ( ! $is_annullato && ! $is_concluso && ! $is_soldout && ! $is_chiuse && $ts_apertura > 0 && $ts_apertura > $now );
+        $is_annullato      = ( 'annullato' === $stato );
+        $is_programmato    = Evento_Stato::is_programmato( $event_id );
+        $is_concluso       = ( ! $is_programmato && 'concluso' === $stato ) || ( ! $is_programmato && $ts_evento > 0 && $ts_evento < $now );
+        $is_soldout        = ( ! $is_annullato && ! $is_programmato && ! $is_concluso && $posti_residui <= 0 );
+        $is_chiuse      = ( ! $is_annullato && ! $is_programmato && ! $is_concluso && ! $is_soldout && $ts_scadenza > 0 && $ts_scadenza < $now );
+        $is_non_ancora  = ( ! $is_annullato && ! $is_programmato && ! $is_concluso && ! $is_soldout && ! $is_chiuse && $ts_apertura > 0 && $ts_apertura > $now );
 
         if ( $is_annullato ) {
             $label = 'Evento annullato'; $sub = '';
             $mod   = 'annullato';
+        } elseif ( $is_programmato ) {
+            $label = Evento_Stato::get_programmato_label( $event_id ); $sub = '';
+            $mod   = 'programmato';
         } elseif ( $is_concluso ) {
             $n_part = $posti_totali - $posti_residui;
             $label  = 'Evento concluso'; $sub = $n_part > 0 ? 'Partecipanti: ' . $n_part : '';

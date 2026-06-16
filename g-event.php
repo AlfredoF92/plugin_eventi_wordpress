@@ -50,6 +50,7 @@ require_once __DIR__ . '/includes/class-auth.php';
 require_once __DIR__ . '/includes/class-auth-frontend.php';
 require_once __DIR__ . '/includes/class-password-frontend.php';
 require_once __DIR__ . '/includes/class-cpt-evento.php';
+require_once __DIR__ . '/includes/class-evento-stato.php';
 require_once __DIR__ . '/includes/class-cpt-prenotazione.php';
 require_once __DIR__ . '/includes/class-booking.php';
 require_once __DIR__ . '/includes/class-mailer.php';
@@ -88,6 +89,7 @@ add_action( 'plugins_loaded', function() {
     $password_frontend->init();
 
     // CPT Evento.
+    \GEvent\Evento_Stato::init();
     $cpt_evento = new \GEvent\CPT_Evento();
     $cpt_evento->init();
 

@@ -81,11 +81,12 @@ class Evento_Scheda {
         $ts_apertura       = $data_apertura_raw ? strtotime( (string) $data_apertura_raw ) : 0;
 
         $is_annullato      = ( 'annullato' === $stato );
-        $is_concluso       = ( 'concluso' === $stato ) || ( $ts_evento > 0 && $ts_evento < $now );
-        $is_soldout        = ( ! $is_annullato && ! $is_concluso && $posti_residui <= 0 );
-        $is_iscr_chiuse    = ( ! $is_annullato && ! $is_concluso && ! $is_soldout && $ts_scadenza > 0 && $ts_scadenza < $now );
-        $is_non_ancora     = ( ! $is_annullato && ! $is_concluso && ! $is_soldout && ! $is_iscr_chiuse && $ts_apertura > 0 && $ts_apertura > $now );
-        $is_open           = ( ! $is_annullato && ! $is_concluso && ! $is_soldout && ! $is_iscr_chiuse && ! $is_non_ancora );
+        $is_programmato    = Evento_Stato::is_programmato( $evento_id );
+        $is_concluso       = ( ! $is_programmato && 'concluso' === $stato ) || ( ! $is_programmato && $ts_evento > 0 && $ts_evento < $now );
+        $is_soldout        = ( ! $is_annullato && ! $is_programmato && ! $is_concluso && $posti_residui <= 0 );
+        $is_iscr_chiuse    = ( ! $is_annullato && ! $is_programmato && ! $is_concluso && ! $is_soldout && $ts_scadenza > 0 && $ts_scadenza < $now );
+        $is_non_ancora     = ( ! $is_annullato && ! $is_programmato && ! $is_concluso && ! $is_soldout && ! $is_iscr_chiuse && $ts_apertura > 0 && $ts_apertura > $now );
+        $is_open           = ( ! $is_programmato && ! $is_annullato && ! $is_concluso && ! $is_soldout && ! $is_iscr_chiuse && ! $is_non_ancora );
 
         // Formattazione date badge.
         $fmt_badge_data = static function( $ts ) {
@@ -142,6 +143,10 @@ class Evento_Scheda {
                 <?php if ( $is_annullato ) : ?>
                     <div class="cral-scheda__badge cral-scheda__badge--annullato">
                         <span class="cral-scheda__badge-title">Evento annullato</span>
+                    </div>
+                <?php elseif ( $is_programmato ) : ?>
+                    <div class="cral-scheda__badge cral-scheda__badge--programmato">
+                        <span class="cral-scheda__badge-title"><?php echo esc_html( Evento_Stato::get_programmato_label( $evento_id ) ); ?></span>
                     </div>
                 <?php elseif ( $is_concluso ) : ?>
                     <div class="cral-scheda__badge cral-scheda__badge--concluso">

@@ -170,6 +170,7 @@ body.post-type-evento .cral-scheda__badge--aperto   { background: #dcfce7; color
 body.post-type-evento .cral-scheda__badge--soldout  { background: #fee2e2; color: #991b1b; }
 body.post-type-evento .cral-scheda__badge--chiuse   { background: #ffedd5; color: #9a3412; }
 body.post-type-evento .cral-scheda__badge--presto   { background: #eff6ff; color: #1e40af; }
+body.post-type-evento .cral-scheda__badge--programmato { background: #e0e7ff; color: #1e3a8a; }
 body.post-type-evento .cral-scheda__badge--concluso { background: #fee2e2; color: #991b1b; }
 body.post-type-evento .cral-scheda__badge--annullato{ background: #fef9c3; color: #92400e; }
 body.post-type-evento .column-cral_evento_stato     { width: 160px; }

@@ -179,10 +179,11 @@ class Admin {
         ) );
 
         $stati_label = array(
-            'bozza'      => '<span style="color:#888;">Bozza</span>',
-            'pubblicato' => '<span style="color:#46b450;">Pubblicato</span>',
-            'concluso'   => '<span style="color:#555;">Concluso</span>',
-            'annullato'  => '<span style="color:#dc3232;">Annullato</span>',
+            'bozza'       => '<span style="color:#888;">Bozza</span>',
+            'programmato' => '<span style="color:#1e40af;">Programmato</span>',
+            'pubblicato'  => '<span style="color:#46b450;">Pubblicato</span>',
+            'concluso'    => '<span style="color:#555;">Concluso</span>',
+            'annullato'   => '<span style="color:#dc3232;">Annullato</span>',
         );
         ?>
         <div class="wrap">
@@ -252,7 +253,13 @@ class Admin {
                                     <?php echo esc_html( $data ? wp_date( 'd/m/Y H:i', strtotime( $data ) ) : '—' ); ?>
                                 </td>
                                 <td>
-                                    <?php echo wp_kses( $stati_label[ $stato ] ?? '—', array( 'span' => array( 'style' => array() ) ) ); ?>
+                                    <?php
+                                    if ( Evento_Stato::is_programmato( $evento->ID ) ) {
+                                        echo '<span style="color:#1e40af;">' . esc_html( Evento_Stato::get_programmato_label( $evento->ID ) ) . '</span>';
+                                    } else {
+                                        echo wp_kses( $stati_label[ $stato ] ?? '—', array( 'span' => array( 'style' => array() ) ) );
+                                    }
+                                    ?>
                                 </td>
                                 <td>
                                     <?php echo esc_html( $posti_residui . ' / ' . $posti_totali ); ?>
@@ -335,13 +342,16 @@ class Admin {
         $fmt_badge_data = static function( $ts ) { return $ts ? wp_date( 'd/m/Y', $ts ) : ''; };
 
         $badge_is_annullato   = ( 'annullato' === $evento_stato );
-        $badge_is_concluso    = ( 'concluso' === $evento_stato ) || ( $ts_evento > 0 && $ts_evento < $now_ts );
-        $badge_is_soldout     = ( ! $badge_is_annullato && ! $badge_is_concluso && $evento_posti_res <= 0 );
-        $badge_is_iscr_chiuse = ( ! $badge_is_annullato && ! $badge_is_concluso && ! $badge_is_soldout && $ts_scadenza > 0 && $ts_scadenza < $now_ts );
-        $badge_is_non_ancora  = ( ! $badge_is_annullato && ! $badge_is_concluso && ! $badge_is_soldout && ! $badge_is_iscr_chiuse && $ts_apertura > 0 && $ts_apertura > $now_ts );
+        $badge_is_programmato = Evento_Stato::is_programmato( $evento_id );
+        $badge_is_concluso    = ( ! $badge_is_programmato && 'concluso' === $evento_stato ) || ( ! $badge_is_programmato && $ts_evento > 0 && $ts_evento < $now_ts );
+        $badge_is_soldout     = ( ! $badge_is_annullato && ! $badge_is_programmato && ! $badge_is_concluso && $evento_posti_res <= 0 );
+        $badge_is_iscr_chiuse = ( ! $badge_is_annullato && ! $badge_is_programmato && ! $badge_is_concluso && ! $badge_is_soldout && $ts_scadenza > 0 && $ts_scadenza < $now_ts );
+        $badge_is_non_ancora  = ( ! $badge_is_annullato && ! $badge_is_programmato && ! $badge_is_concluso && ! $badge_is_soldout && ! $badge_is_iscr_chiuse && $ts_apertura > 0 && $ts_apertura > $now_ts );
 
         if ( $badge_is_annullato ) {
             $badge_label = 'Evento annullato';  $badge_sub = '';              $badge_color = '#92400e'; $badge_bg = '#fef9c3';
+        } elseif ( $badge_is_programmato ) {
+            $badge_label = Evento_Stato::get_programmato_label( $evento_id ); $badge_sub = ''; $badge_color = '#1e40af'; $badge_bg = '#eff6ff';
         } elseif ( $badge_is_concluso ) {
             $n_part      = $evento_posti_totali - $evento_posti_res;
             $badge_label = 'Evento concluso';   $badge_sub = $n_part > 0 ? 'Partecipanti: ' . $n_part : ''; $badge_color = '#991b1b'; $badge_bg = '#fee2e2';

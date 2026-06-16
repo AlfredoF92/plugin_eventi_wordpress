@@ -221,7 +221,7 @@ class Calendario_Eventi {
                     ),
                     array(
                         'key'     => '_cral_evento_stato',
-                        'value'   => array( 'bozza', 'annullato' ),
+                        'value'   => array( 'bozza', 'annullato', 'programmato' ),
                         'compare' => 'NOT IN',
                     ),
                 ),

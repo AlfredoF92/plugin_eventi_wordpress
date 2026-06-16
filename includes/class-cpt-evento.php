@@ -122,10 +122,11 @@ class CPT_Evento {
                 Field::make( 'select', 'cral_evento_stato', 'Stato' )
                     ->set_required( true )
                     ->set_options( array(
-                        'bozza'      => 'Bozza',
-                        'pubblicato' => 'Pubblicato',
-                        'concluso'   => 'Concluso',
-                        'annullato'  => 'Annullato',
+                        'bozza'       => 'Bozza',
+                        'programmato' => 'Programmato',
+                        'pubblicato'  => 'Pubblicato',
+                        'concluso'    => 'Concluso',
+                        'annullato'   => 'Annullato',
                     ) ),
 
                 Field::make( 'rich_text', 'cral_evento_descrizione', 'Descrizione breve' )
@@ -586,13 +587,16 @@ class CPT_Evento {
                 $fbd           = static function( $ts ) { return $ts ? wp_date( 'd/m/Y', $ts ) : ''; };
 
                 $is_ann   = ( 'annullato' === $stato );
-                $is_conc  = ( 'concluso' === $stato ) || ( $ts_ev > 0 && $ts_ev < $now );
-                $is_sold  = ( ! $is_ann && ! $is_conc && $posti_res <= 0 );
-                $is_chius = ( ! $is_ann && ! $is_conc && ! $is_sold && $ts_scad > 0 && $ts_scad < $now );
-                $is_prest = ( ! $is_ann && ! $is_conc && ! $is_sold && ! $is_chius && $ts_ap > 0 && $ts_ap > $now );
+                $is_prog  = Evento_Stato::is_programmato( $post_id );
+                $is_conc  = ( ! $is_prog && 'concluso' === $stato ) || ( ! $is_prog && $ts_ev > 0 && $ts_ev < $now );
+                $is_sold  = ( ! $is_ann && ! $is_prog && ! $is_conc && $posti_res <= 0 );
+                $is_chius = ( ! $is_ann && ! $is_prog && ! $is_conc && ! $is_sold && $ts_scad > 0 && $ts_scad < $now );
+                $is_prest = ( ! $is_ann && ! $is_prog && ! $is_conc && ! $is_sold && ! $is_chius && $ts_ap > 0 && $ts_ap > $now );
 
                 if ( $is_ann ) {
                     $bl = 'Evento annullato'; $bs = ''; $bmod = 'annullato';
+                } elseif ( $is_prog ) {
+                    $bl = Evento_Stato::get_programmato_label( $post_id ); $bs = ''; $bmod = 'programmato';
                 } elseif ( $is_conc ) {
                     $n  = $posti_tot - $posti_res;
                     $bl = 'Evento concluso'; $bs = $n > 0 ? 'Partecipanti: ' . $n : ''; $bmod = 'concluso';
@@ -706,7 +710,8 @@ class CPT_Evento {
                         <option value="soldout"   <?php selected( $f_stato, 'soldout' ); ?>>&#128308; Sold out</option>
                         <option value="concluso"  <?php selected( $f_stato, 'concluso' ); ?>>&#128308; Evento concluso</option>
                         <option value="annullato" <?php selected( $f_stato, 'annullato' ); ?>>&#128308; Evento annullato</option>
-                        <option value="bozza"     <?php selected( $f_stato, 'bozza' ); ?>>&#9898; Bozza</option>
+                        <option value="bozza"        <?php selected( $f_stato, 'bozza' ); ?>>&#9898; Bozza</option>
+                        <option value="programmato"  <?php selected( $f_stato, 'programmato' ); ?>>&#128197; Programmato</option>
                     </select>
                 </div>
 
@@ -772,6 +777,10 @@ class CPT_Evento {
 
             case 'bozza':
                 $meta_query[] = array( 'key' => '_cral_evento_stato', 'value' => 'bozza', 'compare' => '=' );
+                break;
+
+            case 'programmato':
+                $query->set( 'post_status', 'future' );
                 break;
 
             case 'concluso':
