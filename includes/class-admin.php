@@ -72,6 +72,7 @@ class Admin {
         $pages = array(
             'toplevel_page_g-event',
             'g-event_page_g-event-impostazioni',
+            'g-event_page_g-event-calendario',
             'admin_page_g-event-prenotazioni-evento',
             'admin_page_g-event-scheda-socio',
         );
@@ -86,8 +87,9 @@ class Admin {
             'g-event-admin',
             plugins_url( 'assets/css/admin.css', dirname( __FILE__ ) ),
             array(),
-            '1.0.2'
+            '1.0.3'
         );
+
     }
 
     /**
@@ -102,6 +104,7 @@ class Admin {
         $plugin_pages = array(
             'toplevel_page_g-event',
             'g-event_page_g-event-impostazioni',
+            'g-event_page_g-event-calendario',
             'admin_page_g-event-prenotazioni-evento',
             'admin_page_g-event-scheda-socio',
         );
@@ -120,6 +123,9 @@ class Admin {
                 break;
             case 'g-event_page_g-event-impostazioni':
                 $page_title = 'Impostazioni';
+                break;
+            case 'g-event_page_g-event-calendario':
+                $page_title = 'Calendario';
                 break;
             case 'admin_page_g-event-prenotazioni-evento':
                 $ev_id      = isset( $_GET['evento_id'] ) ? absint( $_GET['evento_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification
