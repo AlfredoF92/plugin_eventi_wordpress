@@ -77,8 +77,8 @@ class Evento_Scheda {
         // --- Calcolo stato dinamico badge ---
         $now               = time();
         $ts_evento         = $data_raw       ? strtotime( (string) $data_raw )       : 0;
-        $ts_scadenza       = $data_iscr_raw  ? strtotime( (string) $data_iscr_raw )  : 0;
-        $ts_apertura       = $data_apertura_raw ? strtotime( (string) $data_apertura_raw ) : 0;
+        $ts_scadenza       = Evento_Stato::parse_iscrizione_ts( $data_iscr_raw, 'scadenza' );
+        $ts_apertura       = Evento_Stato::parse_iscrizione_ts( $data_apertura_raw, 'apertura' );
 
         $is_annullato      = ( 'annullato' === $stato );
         $is_programmato    = Evento_Stato::is_programmato( $evento_id );
@@ -90,7 +90,7 @@ class Evento_Scheda {
 
         // Formattazione date badge.
         $fmt_badge_data = static function( $ts ) {
-            return $ts ? wp_date( 'd/m/Y', $ts ) : '';
+            return $ts ? wp_date( 'd/m/Y H:i', $ts ) : '';
         };
         $partecipanti_count = $posti_totali - $posti_residui;
 
@@ -387,8 +387,8 @@ class Evento_Scheda {
                         <!-- Annulla prenotazione -->
                         <?php
                         $deadline_raw  = get_post_meta( $evento_id, '_cral_evento_data_iscrizione', true );
-                        $deadline_ts   = $deadline_raw ? strtotime( (string) $deadline_raw ) : 0;
-                        $deadline_fmt  = $deadline_ts ? wp_date( 'd/m/Y', $deadline_ts ) : '';
+                        $deadline_ts   = Evento_Stato::parse_iscrizione_ts( $deadline_raw, 'scadenza' );
+                        $deadline_fmt  = $deadline_ts ? wp_date( 'd/m/Y H:i', $deadline_ts ) : '';
                         $scaduto       = $deadline_ts && $deadline_ts < time();
                         ?>
                         <div class="cral-scheda__annulla-wrap" id="cral-annulla-wrap-<?php echo esc_attr( $evento_id ); ?>">
@@ -805,10 +805,10 @@ class Evento_Scheda {
         // Verifica deadline annullamento (data scadenza iscrizioni).
         $deadline_raw = get_post_meta( $evento_id, '_cral_evento_data_iscrizione', true );
         if ( $deadline_raw ) {
-            $deadline_ts = strtotime( (string) $deadline_raw );
+            $deadline_ts = Evento_Stato::parse_iscrizione_ts( $deadline_raw, 'scadenza' );
             if ( $deadline_ts && $deadline_ts < time() ) {
                 wp_send_json_error( array(
-                    'message' => 'Il termine per annullare la prenotazione è scaduto il ' . wp_date( 'd/m/Y', $deadline_ts ) . '.',
+                    'message' => 'Il termine per annullare la prenotazione è scaduto il ' . wp_date( 'd/m/Y H:i', $deadline_ts ) . '.',
                 ) );
             }
         }

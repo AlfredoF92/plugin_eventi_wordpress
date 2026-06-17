@@ -481,7 +481,7 @@ class Elementor_Dynamic {
         $atts = shortcode_atts(
             array(
                 'id'     => 0,
-                'format' => 'd/m/Y',
+                'format' => 'd/m/Y H:i',
             ),
             $atts,
             'cral_evento_data_iscrizione'
@@ -491,7 +491,7 @@ class Elementor_Dynamic {
         if ( '' === $raw ) {
             return '';
         }
-        $timestamp = strtotime( $raw );
+        $timestamp = Evento_Stato::parse_iscrizione_ts( $raw, 'scadenza' );
         return $timestamp ? wp_date( sanitize_text_field( $atts['format'] ), $timestamp ) : $raw;
     }
 
@@ -592,9 +592,9 @@ class Elementor_Dynamic {
 
         $now         = time();
         $ts_evento   = $data_raw      ? strtotime( $data_raw )      : 0;
-        $ts_scadenza = $data_iscr_raw ? strtotime( $data_iscr_raw ) : 0;
-        $ts_apertura = $data_ap_raw   ? strtotime( $data_ap_raw )   : 0;
-        $fmt         = static function( $ts ) { return $ts ? wp_date( 'd/m/Y', $ts ) : ''; };
+        $ts_scadenza = Evento_Stato::parse_iscrizione_ts( $data_iscr_raw, 'scadenza' );
+        $ts_apertura = Evento_Stato::parse_iscrizione_ts( $data_ap_raw, 'apertura' );
+        $fmt         = static function( $ts ) { return $ts ? wp_date( 'd/m/Y H:i', $ts ) : ''; };
 
         $is_annullato      = ( 'annullato' === $stato );
         $is_programmato    = Evento_Stato::is_programmato( $event_id );
@@ -936,13 +936,13 @@ class Elementor_Dynamic {
                 $meta_q[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
                 $meta_q[] = array( 'key' => '_cral_evento_data',  'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
                 $meta_q[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
-                $meta_q[] = array( 'key' => '_cral_evento_data_iscrizione', 'value' => $today, 'compare' => '<', 'type' => 'DATE' );
+                $meta_q[] = array( 'key' => '_cral_evento_data_iscrizione', 'value' => $now_dt, 'compare' => '<', 'type' => 'DATETIME' );
                 break;
             case 'presto':
                 $meta_q[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
                 $meta_q[] = array( 'key' => '_cral_evento_data',  'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
                 $meta_q[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
-                $meta_q[] = array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => $today, 'compare' => '>', 'type' => 'DATE' );
+                $meta_q[] = array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => $now_dt, 'compare' => '>', 'type' => 'DATETIME' );
                 break;
             case 'aperto':
                 $meta_q[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
@@ -952,13 +952,13 @@ class Elementor_Dynamic {
                     'relation' => 'OR',
                     array( 'key' => '_cral_evento_data_iscrizione', 'compare' => 'NOT EXISTS' ),
                     array( 'key' => '_cral_evento_data_iscrizione', 'value' => '', 'compare' => '=' ),
-                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => $today, 'compare' => '>=', 'type' => 'DATE' ),
+                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' ),
                 );
                 $meta_q[] = array(
                     'relation' => 'OR',
                     array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'compare' => 'NOT EXISTS' ),
                     array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => '', 'compare' => '=' ),
-                    array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => $today, 'compare' => '<=', 'type' => 'DATE' ),
+                    array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => $now_dt, 'compare' => '<=', 'type' => 'DATETIME' ),
                 );
                 break;
             default:
@@ -1292,13 +1292,13 @@ class Elementor_Dynamic {
                 $meta_q[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
                 $meta_q[] = array( 'key' => '_cral_evento_data',  'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
                 $meta_q[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
-                $meta_q[] = array( 'key' => '_cral_evento_data_iscrizione', 'value' => $today, 'compare' => '<', 'type' => 'DATE' );
+                $meta_q[] = array( 'key' => '_cral_evento_data_iscrizione', 'value' => $now_dt, 'compare' => '<', 'type' => 'DATETIME' );
                 break;
             case 'presto':
                 $meta_q[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
                 $meta_q[] = array( 'key' => '_cral_evento_data',  'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
                 $meta_q[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
-                $meta_q[] = array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => $today, 'compare' => '>', 'type' => 'DATE' );
+                $meta_q[] = array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => $now_dt, 'compare' => '>', 'type' => 'DATETIME' );
                 break;
             case 'aperto':
                 $meta_q[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
@@ -1308,13 +1308,13 @@ class Elementor_Dynamic {
                     'relation' => 'OR',
                     array( 'key' => '_cral_evento_data_iscrizione', 'compare' => 'NOT EXISTS' ),
                     array( 'key' => '_cral_evento_data_iscrizione', 'value' => '', 'compare' => '=' ),
-                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => $today, 'compare' => '>=', 'type' => 'DATE' ),
+                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' ),
                 );
                 $meta_q[] = array(
                     'relation' => 'OR',
                     array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'compare' => 'NOT EXISTS' ),
                     array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => '', 'compare' => '=' ),
-                    array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => $today, 'compare' => '<=', 'type' => 'DATE' ),
+                    array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => $now_dt, 'compare' => '<=', 'type' => 'DATETIME' ),
                 );
                 break;
             default:

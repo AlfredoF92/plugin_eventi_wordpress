@@ -23,6 +23,41 @@ class Evento_Stato {
     }
 
     /**
+     * Timestamp per date iscrizioni (gestisce anche valori legacy solo Y-m-d).
+     *
+     * @param string $raw  Valore meta.
+     * @param string $kind 'apertura' o 'scadenza'.
+     * @return int
+     */
+    public static function parse_iscrizione_ts( $raw, $kind = 'scadenza' ) {
+        $raw = trim( (string) $raw );
+        if ( '' === $raw ) {
+            return 0;
+        }
+
+        if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $raw ) ) {
+            $raw .= ( 'apertura' === $kind ) ? ' 00:00:00' : ' 23:59:00';
+        } elseif ( ! preg_match( '/\d{2}:\d{2}/', $raw ) ) {
+            $raw .= ( 'apertura' === $kind ) ? ' 00:00:00' : ' 23:59:00';
+        }
+
+        $ts = strtotime( $raw );
+        return $ts ? $ts : 0;
+    }
+
+    /**
+     * Formatta data/ora iscrizioni per UI.
+     *
+     * @param string $raw  Valore meta.
+     * @param string $kind 'apertura' o 'scadenza'.
+     * @return string
+     */
+    public static function format_iscrizione_datetime( $raw, $kind = 'scadenza' ) {
+        $ts = self::parse_iscrizione_ts( $raw, $kind );
+        return $ts ? wp_date( 'd/m/Y H:i', $ts ) : '';
+    }
+
+    /**
      * Registra hook di sincronizzazione stato meta ↔ post_status.
      */
     public static function init() {

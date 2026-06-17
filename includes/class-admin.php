@@ -371,9 +371,9 @@ class Admin {
         // ── Badge stato dinamico (stessa logica del frontend) ─────────────────
         $now_ts         = time();
         $ts_evento      = $evento_data    ? strtotime( (string) $evento_data )    : 0;
-        $ts_scadenza    = $data_iscr_raw  ? strtotime( (string) $data_iscr_raw )  : 0;
-        $ts_apertura    = $data_apertura_raw ? strtotime( (string) $data_apertura_raw ) : 0;
-        $fmt_badge_data = static function( $ts ) { return $ts ? wp_date( 'd/m/Y', $ts ) : ''; };
+        $ts_scadenza    = Evento_Stato::parse_iscrizione_ts( $data_iscr_raw, 'scadenza' );
+        $ts_apertura    = Evento_Stato::parse_iscrizione_ts( $data_apertura_raw, 'apertura' );
+        $fmt_badge_data = static function( $ts ) { return $ts ? wp_date( 'd/m/Y H:i', $ts ) : ''; };
 
         $badge_is_annullato   = ( 'annullato' === $evento_stato );
         $badge_is_programmato = Evento_Stato::is_programmato( $evento_id );

@@ -354,7 +354,9 @@ if ( class_exists( '\Elementor\Core\DynamicTags\Tag' ) ) {
                 case 'data_estesa':
                     return $this->format_event_date_estesa( $this->get_meta( $event_id, '_cral_evento_data' ) );
                 case 'data_iscrizione':
-                    return $this->format_event_date( $this->get_meta( $event_id, '_cral_evento_data_iscrizione' ), $date_format ?: 'd/m/Y' );
+                    $raw = $this->get_meta( $event_id, '_cral_evento_data_iscrizione' );
+                    $ts  = Evento_Stato::parse_iscrizione_ts( $raw, 'scadenza' );
+                    return $ts ? wp_date( $date_format ?: 'd/m/Y H:i', $ts ) : '';
                 case 'posti_riepilogo':
                     $residui = (int) $this->get_meta( $event_id, '_cral_evento_posti_residui' );
                     $totali  = (int) $this->get_meta( $event_id, '_cral_evento_posti_totali' );

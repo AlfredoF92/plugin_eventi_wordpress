@@ -23,7 +23,10 @@ class CPT_Evento {
         add_action( 'init', array( $this, 'register_taxonomy' ) );
         add_action( 'carbon_fields_register_fields', array( $this, 'register_fields' ) );
         add_action( 'carbon_fields_post_meta_container_saved', array( $this, 'init_posti_residui' ), 10, 2 );
+        add_action( 'carbon_fields_post_meta_container_saved', array( $this, 'normalize_iscrizioni_datetimes' ), 15, 2 );
         add_action( 'save_post_evento', array( $this, 'normalize_prices' ), 10, 3 );
+        add_action( 'init', array( $this, 'maybe_migrate_iscrizioni_datetimes' ), 20 );
+        add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_event_datetime_assets' ) );
         add_action( 'admin_footer', array( $this, 'toggle_companion_fields_script' ) );
         add_action( 'admin_footer', array( $this, 'evento_publish_validation_script' ) );
 
@@ -107,15 +110,29 @@ class CPT_Evento {
             ->where( 'post_type', '=', 'evento' )
             ->add_fields( array(
 
-                Field::make( 'date_time', 'cral_evento_data', 'Data e ora evento' )
-                    ->set_required( true )
-                    ->set_help_text( 'Data e ora di inizio evento.' ),
+                Field::make( 'hidden', 'cral_evento_data', '' )
+                    ->set_classes( 'cral-evento-datetime-storage' ),
 
-                Field::make( 'date', 'cral_evento_data_apertura_iscrizioni', 'Data apertura iscrizioni' )
+                Field::make( 'html', 'cral_evento_data_ui', '' )
+                    ->set_classes( 'cral-evento-datetime-cf-field' )
+                    ->set_html( $this->render_event_date_picker_html( 'Data Evento', 'evento', 'datetime', false ) )
+                    ->set_help_text( 'Seleziona la data e l\'ora di inizio evento.' ),
+
+                Field::make( 'hidden', 'cral_evento_data_apertura_iscrizioni', '' )
+                    ->set_classes( 'cral-evento-datetime-storage' ),
+
+                Field::make( 'html', 'cral_evento_data_apertura_ui', '' )
+                    ->set_classes( 'cral-evento-datetime-cf-field' )
+                    ->set_html( $this->render_event_date_picker_html( 'Data apertura iscrizioni', 'apertura', 'datetime', true, 0, 0 ) )
                     ->set_help_text( 'Da quando i soci possono iscriversi. Se vuoto, le iscrizioni sono subito aperte.' ),
 
-                Field::make( 'date', 'cral_evento_data_iscrizione', 'Data scadenza iscrizioni' )
-                    ->set_help_text( 'Ultimo giorno utile per iscriversi all\'evento.' ),
+                Field::make( 'hidden', 'cral_evento_data_iscrizione', '' )
+                    ->set_classes( 'cral-evento-datetime-storage' ),
+
+                Field::make( 'html', 'cral_evento_data_iscrizione_ui', '' )
+                    ->set_classes( 'cral-evento-datetime-cf-field' )
+                    ->set_html( $this->render_event_date_picker_html( 'Data scadenza iscrizioni', 'scadenza', 'datetime', true, 23, 59 ) )
+                    ->set_help_text( 'Ultimo giorno e ora utili per iscriversi all\'evento.' ),
 
                 Field::make( 'text', 'cral_evento_luogo', 'Luogo' )
                     ->set_required( true ),
@@ -147,7 +164,6 @@ class CPT_Evento {
 
             ) );
 
-        // Prezzo base socio.
         Container::make( 'post_meta', 'Prezzo socio' )
             ->where( 'post_type', '=', 'evento' )
             ->add_fields( array(
@@ -227,6 +243,171 @@ class CPT_Evento {
                     ->set_attribute( 'type', 'number' )
                     ->set_attribute( 'min', '0' ),
             ) );
+    }
+
+    /**
+     * HTML per picker data (e opzionalmente ora).
+     *
+     * @param string $legend      Etichetta del fieldset.
+     * @param string $id_prefix   Prefisso ID univoco.
+     * @param string $mode        'date' o 'datetime'.
+     * @param bool   $allow_empty Consente valore vuoto (solo date opzionali).
+     * @param int    $default_hour   Ora predefinita per nuovi valori.
+     * @param int    $default_minute Minuti predefiniti per nuovi valori.
+     * @return string
+     */
+    protected function render_event_date_picker_html( $legend, $id_prefix, $mode = 'date', $allow_empty = true, $default_hour = 9, $default_minute = 0 ) {
+        $storage_key = 'evento' === $id_prefix
+            ? '_cral_evento_data'
+            : ( 'apertura' === $id_prefix ? '_cral_evento_data_apertura_iscrizioni' : '_cral_evento_data_iscrizione' );
+
+        $is_datetime = ( 'datetime' === $mode );
+
+        ob_start();
+        ?>
+        <div class="cral-evento-datetime<?php echo $is_datetime ? '' : ' cral-evento-datetime--date-only'; ?>"
+             data-cral-date-picker
+             data-cral-storage-key="<?php echo esc_attr( $storage_key ); ?>"
+             data-cral-date-mode="<?php echo esc_attr( $mode ); ?>"
+             data-cral-allow-empty="<?php echo $allow_empty ? '1' : '0'; ?>"
+             data-cral-default-hour="<?php echo esc_attr( (string) $default_hour ); ?>"
+             data-cral-default-minute="<?php echo esc_attr( (string) $default_minute ); ?>">
+            <fieldset class="cral-evento-datetime__group">
+                <legend class="cral-evento-datetime__legend"><?php echo esc_html( $legend ); ?></legend>
+                <div class="cral-evento-datetime__row">
+                    <div class="cral-evento-datetime__field cral-evento-datetime__field--anno">
+                        <select id="cral-evento-<?php echo esc_attr( $id_prefix ); ?>-anno"
+                                class="cral-evento-datetime__select"
+                                data-cral-evento-year
+                                aria-label="<?php esc_attr_e( 'Anno', 'g-event' ); ?>"></select>
+                    </div>
+                    <div class="cral-evento-datetime__field cral-evento-datetime__field--mese">
+                        <select id="cral-evento-<?php echo esc_attr( $id_prefix ); ?>-mese"
+                                class="cral-evento-datetime__select"
+                                data-cral-evento-month
+                                aria-label="<?php esc_attr_e( 'Mese', 'g-event' ); ?>"></select>
+                    </div>
+                    <div class="cral-evento-datetime__field cral-evento-datetime__field--giorno">
+                        <select id="cral-evento-<?php echo esc_attr( $id_prefix ); ?>-giorno"
+                                class="cral-evento-datetime__select"
+                                data-cral-evento-day
+                                aria-label="<?php esc_attr_e( 'Giorno', 'g-event' ); ?>"></select>
+                    </div>
+                    <?php if ( $is_datetime ) : ?>
+                    <div class="cral-evento-datetime__sep" aria-hidden="true"></div>
+                    <div class="cral-evento-datetime__field cral-evento-datetime__field--ora">
+                        <select id="cral-evento-<?php echo esc_attr( $id_prefix ); ?>-ora"
+                                class="cral-evento-datetime__select"
+                                data-cral-evento-hour
+                                aria-label="<?php esc_attr_e( 'Ora', 'g-event' ); ?>"></select>
+                    </div>
+                    <div class="cral-evento-datetime__field cral-evento-datetime__field--min">
+                        <select id="cral-evento-<?php echo esc_attr( $id_prefix ); ?>-minuti"
+                                class="cral-evento-datetime__select"
+                                data-cral-evento-minute
+                                aria-label="<?php esc_attr_e( 'Minuti', 'g-event' ); ?>"></select>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </fieldset>
+        </div>
+        <?php
+        return (string) ob_get_clean();
+    }
+
+    /**
+     * @deprecated Usare render_event_date_picker_html().
+     * @return string
+     */
+    protected function render_event_datetime_field_html() {
+        return $this->render_event_date_picker_html( 'Data Evento', 'evento', 'datetime', false, 9, 0 );
+    }
+
+    /**
+     * Migrazione una tantum: date iscrizioni legacy Y-m-d → datetime.
+     */
+    public function maybe_migrate_iscrizioni_datetimes() {
+        if ( get_option( 'g_event_iscrizioni_datetime_migrated' ) ) {
+            return;
+        }
+
+        global $wpdb;
+
+        $wpdb->query(
+            "UPDATE {$wpdb->postmeta}
+             SET meta_value = CONCAT(meta_value, ' 00:00:00')
+             WHERE meta_key = '_cral_evento_data_apertura_iscrizioni'
+             AND meta_value REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'"
+        );
+
+        $wpdb->query(
+            "UPDATE {$wpdb->postmeta}
+             SET meta_value = CONCAT(meta_value, ' 23:59:00')
+             WHERE meta_key = '_cral_evento_data_iscrizione'
+             AND meta_value REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'"
+        );
+
+        update_option( 'g_event_iscrizioni_datetime_migrated', '1', false );
+    }
+
+    /**
+     * Normalizza date iscrizioni senza orario al salvataggio.
+     *
+     * @param int $container_id ID container Carbon.
+     * @param int $post_id      ID post evento.
+     */
+    public function normalize_iscrizioni_datetimes( $container_id, $post_id ) {
+        if ( 'evento' !== get_post_type( $post_id ) ) {
+            return;
+        }
+
+        $this->normalize_iscrizione_meta_value( $post_id, '_cral_evento_data_apertura_iscrizioni', '00:00:00' );
+        $this->normalize_iscrizione_meta_value( $post_id, '_cral_evento_data_iscrizione', '23:59:00' );
+    }
+
+    /**
+     * @param int    $post_id     ID post.
+     * @param string $meta_key    Chiave meta.
+     * @param string $time_suffix Orario da appendere se assente.
+     */
+    protected function normalize_iscrizione_meta_value( $post_id, $meta_key, $time_suffix ) {
+        $value = trim( (string) get_post_meta( $post_id, $meta_key, true ) );
+        if ( $value && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
+            update_post_meta( $post_id, $meta_key, $value . ' ' . $time_suffix );
+        }
+    }
+
+    /**
+     * Asset per picker data/ora evento in admin.
+     *
+     * @param string $hook Hook pagina admin.
+     */
+    public function enqueue_event_datetime_assets( $hook ) {
+        if ( ! in_array( $hook, array( 'post.php', 'post-new.php' ), true ) ) {
+            return;
+        }
+
+        $screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+        if ( ! $screen || 'evento' !== $screen->post_type ) {
+            return;
+        }
+
+        $ver = '1.6.1';
+
+        wp_enqueue_style(
+            'g-event-evento-datetime-admin',
+            plugins_url( '../assets/css/evento-datetime-admin.css', __FILE__ ),
+            array( 'g-event-admin', 'forms' ),
+            $ver
+        );
+
+        wp_enqueue_script(
+            'g-event-evento-datetime-admin',
+            plugins_url( '../assets/js/evento-datetime-admin.js', __FILE__ ),
+            array(),
+            $ver,
+            true
+        );
     }
 
     /**
@@ -831,7 +1012,7 @@ class CPT_Evento {
                 $meta_query[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
                 $meta_query[] = array( 'key' => '_cral_evento_data', 'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
                 $meta_query[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
-                $meta_query[] = array( 'key' => '_cral_evento_data_iscrizione', 'value' => gmdate( 'Y-m-d' ), 'compare' => '<', 'type' => 'DATE' );
+                $meta_query[] = array( 'key' => '_cral_evento_data_iscrizione', 'value' => $now_dt, 'compare' => '<', 'type' => 'DATETIME' );
                 break;
 
             case 'presto':
@@ -839,13 +1020,13 @@ class CPT_Evento {
                 $meta_query[] = array( 'key' => '_cral_evento_stato', 'value' => array( 'annullato', 'concluso' ), 'compare' => 'NOT IN' );
                 $meta_query[] = array( 'key' => '_cral_evento_data', 'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' );
                 $meta_query[] = array( 'key' => '_cral_evento_posti_residui', 'value' => '0', 'compare' => '>', 'type' => 'NUMERIC' );
-                $meta_query[] = array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => gmdate( 'Y-m-d' ), 'compare' => '>', 'type' => 'DATE' );
+                $meta_query[] = array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => $now_dt, 'compare' => '>', 'type' => 'DATETIME' );
                 // Scadenza iscrizioni non ancora passata (o non impostata).
                 $meta_query[] = array(
                     'relation' => 'OR',
                     array( 'key' => '_cral_evento_data_iscrizione', 'compare' => 'NOT EXISTS' ),
                     array( 'key' => '_cral_evento_data_iscrizione', 'value' => '', 'compare' => '=' ),
-                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => gmdate( 'Y-m-d' ), 'compare' => '>=', 'type' => 'DATE' ),
+                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' ),
                 );
                 break;
 
@@ -859,14 +1040,14 @@ class CPT_Evento {
                     'relation' => 'OR',
                     array( 'key' => '_cral_evento_data_iscrizione', 'compare' => 'NOT EXISTS' ),
                     array( 'key' => '_cral_evento_data_iscrizione', 'value' => '', 'compare' => '=' ),
-                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => gmdate( 'Y-m-d' ), 'compare' => '>=', 'type' => 'DATE' ),
+                    array( 'key' => '_cral_evento_data_iscrizione', 'value' => $now_dt, 'compare' => '>=', 'type' => 'DATETIME' ),
                 );
                 // Apertura iscrizioni: non esiste, è vuota, oppure è già arrivata (non ancora futura).
                 $meta_query[] = array(
                     'relation' => 'OR',
                     array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'compare' => 'NOT EXISTS' ),
                     array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => '', 'compare' => '=' ),
-                    array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => gmdate( 'Y-m-d' ), 'compare' => '<=', 'type' => 'DATE' ),
+                    array( 'key' => '_cral_evento_data_apertura_iscrizioni', 'value' => $now_dt, 'compare' => '<=', 'type' => 'DATETIME' ),
                 );
                 break;
         }
