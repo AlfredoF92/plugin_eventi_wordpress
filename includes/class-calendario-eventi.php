@@ -42,6 +42,48 @@ class Calendario_Eventi {
     }
 
     /**
+     * Nome e stato accesso per la sezione di benvenuto.
+     *
+     * @return array{name: string, logged_in: bool}
+     */
+    protected function resolve_welcome_identity() {
+        if ( is_user_logged_in() && current_user_can( 'manage_options' ) ) {
+            $wp_user = wp_get_current_user();
+            $nome    = trim( (string) $wp_user->first_name );
+            if ( '' === $nome ) {
+                $nome = trim( (string) $wp_user->display_name );
+            }
+            if ( '' === $nome ) {
+                $nome = (string) $wp_user->user_login;
+            }
+
+            return array(
+                'name'      => $nome,
+                'logged_in' => true,
+            );
+        }
+
+        $auth     = new Auth();
+        $socio_id = $auth->get_current_socio();
+        if ( $socio_id ) {
+            $nome = trim( (string) get_post_meta( $socio_id, '_cral_nome', true ) );
+            if ( '' === $nome ) {
+                $nome = __( 'Socio', 'g-event' );
+            }
+
+            return array(
+                'name'      => $nome,
+                'logged_in' => true,
+            );
+        }
+
+        return array(
+            'name'      => '',
+            'logged_in' => false,
+        );
+    }
+
+    /**
      * Carica CSS/JS del calendario (anche in render shortcode, post wp_head).
      */
     private function enqueue_assets() {
@@ -51,11 +93,11 @@ class Calendario_Eventi {
         self::$assets_enqueued = true;
 
         $base = plugin_dir_url( dirname( __FILE__ ) );
-        $ver  = '1.6.6';
+        $ver  = '1.6.7';
 
         wp_enqueue_style(
             'g-event-calendario-font',
-            'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap',
+            'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap',
             array(),
             null
         );
@@ -153,6 +195,7 @@ class Calendario_Eventi {
         $upcoming = $this->get_upcoming_events( 12 );
         $past     = $this->get_past_events( 48, 0 );
         $uid      = 'cral-cal-' . wp_rand( 1000, 9999 );
+        $welcome  = $this->resolve_welcome_identity();
 
         ob_start();
         ?>
@@ -160,6 +203,34 @@ class Calendario_Eventi {
              data-year="<?php echo esc_attr( (string) $year ); ?>"
              data-month="<?php echo esc_attr( (string) $month ); ?>"
              data-focus-day="<?php echo esc_attr( (string) $focus ); ?>">
+
+            <section class="cral-cal__welcome" aria-label="<?php esc_attr_e( 'Benvenuto', 'g-event' ); ?>">
+                <p class="cral-cal__welcome-hello">
+                    <?php if ( ! empty( $welcome['name'] ) ) : ?>
+                        <?php
+                        printf(
+                            /* translators: %s: user first name */
+                            esc_html__( 'Ciao, %s', 'g-event' ),
+                            esc_html( $welcome['name'] )
+                        );
+                        ?>
+                    <?php else : ?>
+                        <?php esc_html_e( 'Ciao', 'g-event' ); ?>
+                    <?php endif; ?>
+                </p>
+                <p class="cral-cal__welcome-sub">
+                    <?php
+                    echo esc_html(
+                        ! empty( $welcome['logged_in'] )
+                            ? __( 'bentornato', 'g-event' )
+                            : __( 'benvenuto', 'g-event' )
+                    );
+                    ?>
+                </p>
+                <p class="cral-cal__welcome-desc">
+                    <?php esc_html_e( 'Scopri i prossimi eventi in programma per il CRAL BCC di Milano', 'g-event' ); ?>
+                </p>
+            </section>
 
             <section class="cral-cal__upcoming" aria-label="<?php esc_attr_e( 'Prossimi eventi', 'g-event' ); ?>">
                 <div class="cral-cal__upcoming-head">

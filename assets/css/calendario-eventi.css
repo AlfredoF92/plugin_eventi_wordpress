@@ -1186,6 +1186,44 @@ a.cral-cal-list__btn:hover .cral-cal-list__title {
     color: var(--cral-cal-verdino);
 }
 
+/* ── Benvenuto ─────────────────────────────────────── */
+.cral-cal__welcome {
+    margin: 0 0 36px;
+    padding: 0;
+    background: transparent;
+    max-width: 40rem;
+}
+
+.cral-cal__welcome-hello {
+    margin: 0;
+    font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+    font-size: clamp(2.15rem, 5.2vw, 3.35rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    color: #fff;
+}
+
+.cral-cal__welcome-sub {
+    margin: 4px 0 0;
+    font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+    font-size: clamp(1.85rem, 4.4vw, 2.85rem);
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    color: #a7c957;
+}
+
+.cral-cal__welcome-desc {
+    margin: 16px 0 0;
+    font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+    font-size: clamp(0.95rem, 1.5vw, 1.08rem);
+    font-weight: 500;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.68);
+    max-width: 28rem;
+}
+
 /* ── Prossimi eventi — carosello ───────────────────── */
 .cral-cal__upcoming {
     margin: 0 0 32px;
