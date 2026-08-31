@@ -132,81 +132,238 @@ class Evento_Scheda {
             return $ts ? wp_date( $format, $ts ) : '—';
         };
 
+        // Categoria.
+        $terms     = get_the_terms( $evento_id, 'categoria_evento' );
+        $categoria = '';
+        $cat_color = '#a7c957';
+        $cat_text  = '#111827';
+        if ( $terms && ! is_wp_error( $terms ) ) {
+            $categoria = $terms[0]->name;
+            $cat_color = CPT_Evento::get_categoria_colore( $terms[0] );
+            $cat_text  = CPT_Evento::contrast_text_color( $cat_color );
+        }
+
+        // Cover + descrizione + data estesa.
+        $cover_id  = get_post_thumbnail_id( $evento_id );
+        $cover_url = $cover_id ? (string) wp_get_attachment_image_url( $cover_id, 'full' ) : '';
+        if ( ! $cover_url && $cover_id ) {
+            $cover_url = (string) wp_get_attachment_image_url( $cover_id, 'large' );
+        }
+        $descrizione = (string) get_post_meta( $evento_id, '_cral_evento_descrizione', true );
+        if ( '' === trim( $descrizione ) ) {
+            $descrizione = (string) $evento->post_content;
+        }
+        $dynamic     = new Elementor_Dynamic();
+        $data_estesa = (string) $dynamic->evento_data_estesa( array( 'id' => $evento_id ) );
+        $ora_evento  = $ts_evento ? wp_date( 'H:i', $ts_evento ) : '';
+
+        // Font + CSS scheda (versione aggiornata).
+        wp_enqueue_style(
+            'g-event-scheda-font',
+            'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap',
+            array(),
+            null
+        );
+        wp_enqueue_style(
+            'g-event-scheda',
+            plugins_url( '../assets/css/scheda-evento.css', __FILE__ ),
+            array( 'g-event-scheda-font' ),
+            '2.2.7'
+        );
+
+        $desc_excerpt = '';
+        if ( trim( wp_strip_all_tags( $descrizione ) ) ) {
+            $desc_excerpt = wp_trim_words( wp_strip_all_tags( $descrizione ), 36, '…' );
+        }
+
+        $giorni_full = array(
+            1 => 'Lunedì',
+            2 => 'Martedì',
+            3 => 'Mercoledì',
+            4 => 'Giovedì',
+            5 => 'Venerdì',
+            6 => 'Sabato',
+            7 => 'Domenica',
+        );
+        $mesi_full = array(
+            1  => 'gennaio',
+            2  => 'febbraio',
+            3  => 'marzo',
+            4  => 'aprile',
+            5  => 'maggio',
+            6  => 'giugno',
+            7  => 'luglio',
+            8  => 'agosto',
+            9  => 'settembre',
+            10 => 'ottobre',
+            11 => 'novembre',
+            12 => 'dicembre',
+        );
+        $day_n   = $ts_evento ? (int) wp_date( 'j', $ts_evento ) : 0;
+        $dow_n   = $ts_evento ? (int) wp_date( 'N', $ts_evento ) : 0;
+        $month_n = $ts_evento ? (int) wp_date( 'n', $ts_evento ) : 0;
+        $year_n  = $ts_evento ? (int) wp_date( 'Y', $ts_evento ) : 0;
+        $fill_pct = ( $posti_totali > 0 )
+            ? (int) min( 100, round( ( max( 0, $partecipanti_count ) / $posti_totali ) * 100 ) )
+            : 0;
+
         ob_start();
         ?>
-        <div class="cral-scheda" id="cral-scheda-<?php echo esc_attr( $evento_id ); ?>">
+        <div class="cral-scheda" id="cral-scheda-<?php echo esc_attr( (string) $evento_id ); ?>"
+             style="--cral-cat: <?php echo esc_attr( $cat_color ); ?>; --cral-cat-fg: <?php echo esc_attr( $cat_text ); ?>; --cral-fill: <?php echo esc_attr( (string) $fill_pct ); ?>%;">
 
-            <!-- ═══ RIEPILOGO EVENTO ═══ -->
-            <div class="cral-scheda__info">
+            <div class="cral-scheda__band cral-scheda__band--top">
+            <div class="cral-scheda__inner">
 
-                <!-- Badge stato dinamico -->
-                <?php if ( $is_annullato ) : ?>
-                    <div class="cral-scheda__badge cral-scheda__badge--annullato">
-                        <span class="cral-scheda__badge-title">Evento annullato</span>
-                    </div>
-                <?php elseif ( $is_programmato ) : ?>
-                    <div class="cral-scheda__badge cral-scheda__badge--programmato">
-                        <span class="cral-scheda__badge-title"><?php echo esc_html( Evento_Stato::get_programmato_label( $evento_id ) ); ?></span>
-                    </div>
-                <?php elseif ( $is_concluso ) : ?>
-                    <div class="cral-scheda__badge cral-scheda__badge--concluso">
-                        <span class="cral-scheda__badge-title">Evento concluso</span>
-                        <?php if ( $partecipanti_count > 0 ) : ?>
-                        <span class="cral-scheda__badge-sub">Partecipanti: <?php echo esc_html( $partecipanti_count ); ?></span>
+            <header class="cral-scheda__top<?php echo $cover_url ? '' : ' cral-scheda__top--no-media'; ?>">
+                <div class="cral-scheda__intro">
+                    <div class="cral-scheda__hero-tags">
+                        <?php if ( $categoria ) : ?>
+                        <span class="cral-scheda__cat" style="background:<?php echo esc_attr( $cat_color ); ?>;color:<?php echo esc_attr( $cat_text ); ?>">
+                            <?php echo esc_html( $categoria ); ?>
+                        </span>
+                        <?php endif; ?>
+
+                        <?php if ( $is_annullato ) : ?>
+                            <span class="cral-scheda__badge cral-scheda__badge--annullato"><span class="cral-scheda__badge-title">Annullato</span></span>
+                        <?php elseif ( $is_programmato ) : ?>
+                            <span class="cral-scheda__badge cral-scheda__badge--programmato"><span class="cral-scheda__badge-title"><?php echo esc_html( Evento_Stato::get_programmato_label( $evento_id ) ); ?></span></span>
+                        <?php elseif ( $is_concluso ) : ?>
+                            <span class="cral-scheda__badge cral-scheda__badge--concluso"><span class="cral-scheda__badge-title">Concluso</span></span>
+                        <?php elseif ( $is_soldout ) : ?>
+                            <span class="cral-scheda__badge cral-scheda__badge--soldout"><span class="cral-scheda__badge-title">Sold out</span></span>
+                        <?php elseif ( $is_iscr_chiuse ) : ?>
+                            <span class="cral-scheda__badge cral-scheda__badge--chiuse"><span class="cral-scheda__badge-title">Iscrizioni chiuse</span></span>
+                        <?php elseif ( $is_non_ancora ) : ?>
+                            <span class="cral-scheda__badge cral-scheda__badge--presto"><span class="cral-scheda__badge-title">In arrivo</span></span>
+                        <?php else : ?>
+                            <span class="cral-scheda__badge cral-scheda__badge--aperto"><span class="cral-scheda__badge-title">Iscrizioni aperte</span></span>
                         <?php endif; ?>
                     </div>
-                <?php elseif ( $is_soldout ) : ?>
-                    <div class="cral-scheda__badge cral-scheda__badge--soldout">
-                        <span class="cral-scheda__badge-title">&#x1F6AB; Sold out</span>
-                        <span class="cral-scheda__badge-sub">Posti disponibili: 0</span>
-                    </div>
-                <?php elseif ( $is_iscr_chiuse ) : ?>
-                    <div class="cral-scheda__badge cral-scheda__badge--chiuse">
-                        <span class="cral-scheda__badge-title">Iscrizioni chiuse</span>
-                        <?php if ( $ts_scadenza ) : ?>
-                        <span class="cral-scheda__badge-sub">Scadute il <?php echo esc_html( $fmt_badge_data( $ts_scadenza ) ); ?></span>
-                        <?php endif; ?>
-                    </div>
-                <?php elseif ( $is_non_ancora ) : ?>
-                    <div class="cral-scheda__badge cral-scheda__badge--presto">
-                        <span class="cral-scheda__badge-title">Evento pubblicato</span>
-                        <span class="cral-scheda__badge-sub">Le iscrizioni aprono il <?php echo esc_html( $fmt_badge_data( $ts_apertura ) ); ?></span>
-                    </div>
-                <?php else : ?>
-                    <div class="cral-scheda__badge cral-scheda__badge--aperto">
-                        <span class="cral-scheda__badge-title">Iscrizioni aperte</span>
-                        <?php if ( $ts_scadenza ) : ?>
-                        <span class="cral-scheda__badge-sub">fino al <?php echo esc_html( $fmt_badge_data( $ts_scadenza ) ); ?></span>
-                        <?php endif; ?>
-                    </div>
-                <?php endif; ?>
 
-                <!-- Prezzi -->
-                <div class="cral-scheda__prezzi">
-                    <h3 class="cral-scheda__prezzi-title">Prezzi</h3>
-                    <div class="cral-scheda__prezzi-list">
-                        <div class="cral-scheda__prezzo-row cral-scheda__prezzo-row--base">
-                            <span class="cral-scheda__prezzo-label">&#127915; Biglietto socio</span>
-                            <span class="cral-scheda__prezzo-val"><?php echo wp_kses_post( $fmt_euro( $prezzo_base ) ); ?></span>
-                        </div>
-                        <?php foreach ( $enabled_types as $type_label => $type_data ) : ?>
-                        <div class="cral-scheda__prezzo-row">
-                            <span class="cral-scheda__prezzo-label">
-                                &#43; <?php echo esc_html( $type_label ); ?>
-                                <em class="cral-scheda__prezzo-max">(max <?php echo esc_html( $type_data['max'] ); ?>)</em>
+                    <h1 class="cral-scheda__title"><?php echo esc_html( $titolo ); ?></h1>
+
+                    <?php if ( $desc_excerpt ) : ?>
+                    <p class="cral-scheda__excerpt"><?php echo esc_html( $desc_excerpt ); ?></p>
+                    <?php endif; ?>
+
+                    <ul class="cral-scheda__facts-inline" aria-label="<?php esc_attr_e( 'Dettagli evento', 'g-event' ); ?>">
+                        <?php if ( $day_n ) : ?>
+                        <li class="cral-scheda__fi cral-scheda__fi--date">
+                            <span class="cral-scheda__fi-icon" data-cral-icon="date" aria-hidden="true"><?php echo $this->render_icon( 'date' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+                            <span class="cral-scheda__fi-text">
+                                <strong><?php echo esc_html( (string) $day_n . ' ' . ( $mesi_full[ $month_n ] ?? '' ) ); ?></strong>
+                                <span><?php echo esc_html( trim( ( $giorni_full[ $dow_n ] ?? '' ) . ' · ' . $year_n ) ); ?></span>
                             </span>
-                            <span class="cral-scheda__prezzo-val"><?php echo wp_kses_post( $fmt_euro( $type_data['price'] ) ); ?></span>
-                        </div>
-                        <?php endforeach; ?>
-                        <?php if ( empty( $enabled_types ) ) : ?>
-                        <p class="cral-scheda__no-acc">Nessun accompagnatore previsto per questo evento.</p>
+                        </li>
                         <?php endif; ?>
-                    </div>
+
+                        <?php if ( $ora_evento ) : ?>
+                        <li class="cral-scheda__fi cral-scheda__fi--time">
+                            <span class="cral-scheda__fi-icon" data-cral-icon="time" aria-hidden="true"><?php echo $this->render_icon( 'time' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+                            <span class="cral-scheda__fi-text">
+                                <strong><?php echo esc_html( $ora_evento ); ?></strong>
+                                <span><?php esc_html_e( 'orario', 'g-event' ); ?></span>
+                            </span>
+                        </li>
+                        <?php endif; ?>
+
+                        <?php if ( $luogo ) : ?>
+                        <li class="cral-scheda__fi cral-scheda__fi--place">
+                            <span class="cral-scheda__fi-icon" data-cral-icon="place" aria-hidden="true"><?php echo $this->render_icon( 'place' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+                            <span class="cral-scheda__fi-text">
+                                <strong><?php echo esc_html( (string) $luogo ); ?></strong>
+                                <span><?php esc_html_e( 'luogo', 'g-event' ); ?></span>
+                            </span>
+                        </li>
+                        <?php endif; ?>
+
+                        <?php if ( $ts_scadenza && ! $is_concluso && ! $is_annullato ) : ?>
+                        <li class="cral-scheda__fi cral-scheda__fi--deadline">
+                            <span class="cral-scheda__fi-icon" data-cral-icon="deadline" aria-hidden="true"><?php echo $this->render_icon( 'deadline' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+                            <span class="cral-scheda__fi-text">
+                                <strong><?php echo esc_html( wp_date( 'd/m/Y', $ts_scadenza ) ); ?></strong>
+                                <span><?php esc_html_e( 'iscriviti entro', 'g-event' ); ?></span>
+                            </span>
+                        </li>
+                        <?php elseif ( $ts_apertura && $is_non_ancora ) : ?>
+                        <li class="cral-scheda__fi cral-scheda__fi--opening">
+                            <span class="cral-scheda__fi-icon" data-cral-icon="opening" aria-hidden="true"><?php echo $this->render_icon( 'opening' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+                            <span class="cral-scheda__fi-text">
+                                <strong><?php echo esc_html( wp_date( 'd/m/Y', $ts_apertura ) ); ?></strong>
+                                <span><?php esc_html_e( 'apertura iscrizioni', 'g-event' ); ?></span>
+                            </span>
+                        </li>
+                        <?php endif; ?>
+                    </ul>
                 </div>
 
-            </div><!-- /.cral-scheda__info -->
+                <?php if ( $cover_url ) : ?>
+                <figure class="cral-scheda__poster">
+                    <img src="<?php echo esc_url( $cover_url ); ?>" alt="<?php echo esc_attr( $titolo ); ?>" class="cral-scheda__poster-img" />
+                </figure>
+                <?php endif; ?>
+            </header>
 
-            <hr class="cral-scheda__divider">
+            </div><!-- /.cral-scheda__inner (top) -->
+            </div><!-- /.cral-scheda__band--top -->
+
+            <div class="cral-scheda__band cral-scheda__band--body">
+            <div class="cral-scheda__inner">
+
+            <div class="cral-scheda__shell">
+                <div class="cral-scheda__main">
+
+                    <?php if ( trim( wp_strip_all_tags( $descrizione ) ) ) : ?>
+                    <section class="cral-scheda__about">
+                        <h2 class="cral-scheda__section-title"><?php esc_html_e( 'Descrizione', 'g-event' ); ?></h2>
+                        <div class="cral-scheda__about-body">
+                            <?php echo wp_kses_post( wpautop( $descrizione ) ); ?>
+                        </div>
+                    </section>
+                    <?php endif; ?>
+
+                    <section class="cral-scheda__prezzi">
+                        <h2 class="cral-scheda__section-title"><?php esc_html_e( 'Prezzi', 'g-event' ); ?></h2>
+                        <div class="cral-scheda__prezzi-list">
+                            <div class="cral-scheda__prezzo-row cral-scheda__prezzo-row--base">
+                                <span class="cral-scheda__prezzo-label"><?php esc_html_e( 'Biglietto socio', 'g-event' ); ?></span>
+                                <span class="cral-scheda__prezzo-val"><?php echo wp_kses_post( $fmt_euro( $prezzo_base ) ); ?></span>
+                            </div>
+                            <?php foreach ( $enabled_types as $type_label => $type_data ) : ?>
+                            <div class="cral-scheda__prezzo-row">
+                                <span class="cral-scheda__prezzo-label">
+                                    <?php echo esc_html( $type_label ); ?>
+                                    <em class="cral-scheda__prezzo-max">(max <?php echo esc_html( (string) $type_data['max'] ); ?>)</em>
+                                </span>
+                                <span class="cral-scheda__prezzo-val"><?php echo wp_kses_post( $fmt_euro( $type_data['price'] ) ); ?></span>
+                            </div>
+                            <?php endforeach; ?>
+                            <?php if ( empty( $enabled_types ) ) : ?>
+                            <p class="cral-scheda__no-acc"><?php esc_html_e( 'Nessun accompagnatore previsto per questo evento.', 'g-event' ); ?></p>
+                            <?php endif; ?>
+                        </div>
+                    </section>
+
+                </div><!-- /.cral-scheda__main -->
+
+                <aside class="cral-scheda__aside" aria-label="<?php esc_attr_e( 'Prenotazione', 'g-event' ); ?>">
+
+            <div class="cral-scheda__book-snap" aria-label="<?php esc_attr_e( 'Posti disponibili', 'g-event' ); ?>">
+                <div class="cral-scheda__book-snap-item cral-scheda__book-snap-item--seats">
+                    <span class="cral-scheda__book-snap-icon" data-cral-icon="seats" aria-hidden="true"><?php echo $this->render_icon( 'seats' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+                    <div class="cral-scheda__book-snap-body">
+                        <span class="cral-scheda__book-snap-kicker"><?php esc_html_e( 'Posti liberi', 'g-event' ); ?></span>
+                        <span class="cral-scheda__book-snap-val">
+                            <?php echo esc_html( (string) max( 0, $posti_residui ) ); ?>
+                            <em><?php esc_html_e( 'su', 'g-event' ); ?> <?php echo esc_html( (string) $posti_totali ); ?></em>
+                        </span>
+                        <div class="cral-scheda__fill" role="img" aria-label="<?php echo esc_attr( sprintf( __( 'Occupazione %d%%', 'g-event' ), $fill_pct ) ); ?>">
+                            <span class="cral-scheda__fill-bar"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- ═══ SEZIONE PRENOTAZIONE ═══ -->
             <div class="cral-scheda__prenota">
@@ -544,6 +701,11 @@ class Evento_Scheda {
                 <?php endif; ?>
 
             </div><!-- /.cral-scheda__prenota -->
+                </aside>
+            </div><!-- /.cral-scheda__shell -->
+
+            </div><!-- /.cral-scheda__inner (body) -->
+            </div><!-- /.cral-scheda__band--body -->
 
         </div><!-- /.cral-scheda -->
         <script>
@@ -1030,5 +1192,27 @@ class Evento_Scheda {
             'note'            => $note,
             'partecipanti'    => $partecipanti_risposta,
         ) );
+    }
+
+    /**
+     * Icona SVG minimal (placeholder sostituibile via data-cral-icon).
+     *
+     * @param string $name date|time|place|seats|price|deadline|opening.
+     * @return string Markup SVG.
+     */
+    private function render_icon( $name ) {
+        $stroke = 'fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"';
+
+        $icons = array(
+            'date'     => '<svg viewBox="0 0 24 24" ' . $stroke . '><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+            'time'     => '<svg viewBox="0 0 24 24" ' . $stroke . '><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>',
+            'place'    => '<svg viewBox="0 0 24 24" ' . $stroke . '><path d="M12 21s-6-5.2-6-10a6 6 0 1 1 12 0c0 4.8-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/></svg>',
+            'seats'    => '<svg viewBox="0 0 24 24" ' . $stroke . '><circle cx="9" cy="8" r="3"/><path d="M3.5 20v-1.4c0-2.2 2.5-3.6 5.5-3.6s5.5 1.4 5.5 3.6V20"/><circle cx="17" cy="9" r="2.5"/><path d="M14.5 20v-1.1c0-1.6 1.7-2.6 3.5-2.6"/></svg>',
+            'price'    => '<svg viewBox="0 0 24 24" ' . $stroke . '><path d="M6 8h12"/><path d="M6 12h8"/><circle cx="12" cy="12" r="9"/></svg>',
+            'deadline' => '<svg viewBox="0 0 24 24" ' . $stroke . '><path d="M6 3h12v4H6z"/><path d="M8 7v13"/><path d="M16 7v13"/><path d="M5 20h14"/></svg>',
+            'opening'  => '<svg viewBox="0 0 24 24" ' . $stroke . '><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M3 10h18"/><path d="M12 14v3"/><path d="M10.5 16.5h3"/></svg>',
+        );
+
+        return $icons[ $name ] ?? '';
     }
 }

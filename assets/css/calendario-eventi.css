@@ -140,12 +140,46 @@
 }
 
 /* ── Navigazione mese ─────────────────────────────── */
+.cral-cal__nav-wrap {
+    margin-bottom: 14px;
+}
+
 .cral-cal__nav {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 14px;
+    margin-bottom: 0;
+}
+
+.cral-cal:not(.cral-cal--admin) .cral-cal__nav-today {
+    margin-top: 10px;
+}
+
+.cral-cal:not(.cral-cal--admin) .cral-cal__today-btn {
+    border: 1px solid rgba(167, 201, 87, 0.55);
+    background: rgba(167, 201, 87, 0.14);
+    color: #d9f09a;
+    font-size: .78rem;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    line-height: 1.35;
+    font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+    letter-spacing: 0.01em;
+    box-shadow: none;
+    transition: background .2s, border-color .2s, color .2s, transform .15s;
+}
+
+.cral-cal:not(.cral-cal--admin) .cral-cal__today-btn:hover,
+.cral-cal:not(.cral-cal--admin) .cral-cal__today-btn:focus-visible {
+    background: rgba(167, 201, 87, 0.28);
+    border-color: #a7c957;
+    color: #fff;
+    outline: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    transform: translateY(-1px);
 }
 
 .cral-cal__month-label {
@@ -323,16 +357,16 @@
 
 .cral-cal__cell.is-selected:not(.is-today),
 .cral-cal__cell.is-active-day:not(.is-today) {
-    border-color: var(--cral-cal-red);
-    background: linear-gradient(160deg, rgba(232, 93, 93, 0.28), rgba(167, 201, 87, 0.12));
-    box-shadow: 0 0 0 2px rgba(232, 93, 93, 0.28);
+    border-color: var(--cral-cal-verdino);
+    background: linear-gradient(160deg, rgba(167, 201, 87, 0.32), rgba(167, 201, 87, 0.1));
+    box-shadow: 0 0 0 2px rgba(167, 201, 87, 0.35);
 }
 
 .cral-cal__cell.is-active-day.is-today {
     box-shadow:
-        0 0 0 2px rgba(232, 93, 93, 0.45),
+        0 0 0 2px rgba(167, 201, 87, 0.5),
         0 8px 28px rgba(0, 0, 0, 0.45);
-    border-color: var(--cral-cal-red);
+    border-color: var(--cral-cal-verdino);
 }
 
 .cral-cal__day-num {
@@ -1188,39 +1222,47 @@ a.cral-cal-list__btn:hover .cral-cal-list__title {
 
 /* ── Benvenuto ─────────────────────────────────────── */
 .cral-cal__welcome {
-    margin: 0 0 36px;
+    margin: 0 0 40px;
     padding: 0;
     background: transparent;
     max-width: 40rem;
 }
 
-.cral-cal__welcome-hello {
+.cral-cal__welcome > p {
     margin: 0;
+    padding: 0;
+}
+
+.cral-cal__welcome-hello {
+    margin: 0 !important;
+    padding: 0;
     font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
     font-size: clamp(2.15rem, 5.2vw, 3.35rem);
     font-weight: 800;
-    line-height: 1.05;
+    line-height: 0.95;
     letter-spacing: -0.03em;
     color: #fff;
 }
 
 .cral-cal__welcome-sub {
-    margin: 4px 0 0;
+    margin: 6px 0 0 !important;
+    padding: 0;
     font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
-    font-size: clamp(1.85rem, 4.4vw, 2.85rem);
-    font-weight: 700;
-    line-height: 1.05;
-    letter-spacing: -0.025em;
-    color: #a7c957;
+    font-size: clamp(0.92rem, 1.4vw, 1.05rem);
+    font-weight: 500;
+    line-height: 1.25;
+    letter-spacing: 0.01em;
+    color: rgba(167, 201, 87, 0.92);
 }
 
 .cral-cal__welcome-desc {
-    margin: 16px 0 0;
+    margin: 12px 0 0 !important;
+    padding: 0 0 8px;
     font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
     font-size: clamp(0.95rem, 1.5vw, 1.08rem);
     font-weight: 500;
-    line-height: 1.45;
-    color: rgba(255, 255, 255, 0.68);
+    line-height: 1.35;
+    color: rgba(255, 255, 255, 0.92);
     max-width: 28rem;
 }
 
@@ -1335,8 +1377,28 @@ a.cral-cal-list__btn:hover .cral-cal-list__title {
     scroll-snap-type: x mandatory;
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
     padding-bottom: 4px;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.cral-cal__product-grid--carousel .cral-cal-product {
+    cursor: pointer;
+}
+
+.cral-cal__product-grid--carousel.is-dragging {
+    cursor: grabbing;
+    scroll-snap-type: none;
+    scroll-behavior: auto;
+}
+
+.cral-cal__product-grid--carousel.is-dragging .cral-cal-product {
+    pointer-events: none;
+    cursor: grabbing;
 }
 
 .cral-cal__product-grid--carousel::-webkit-scrollbar {
@@ -1710,8 +1772,28 @@ a.cral-cal-list__btn:hover .cral-cal-list__title {
     scroll-snap-type: x mandatory;
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
     padding-bottom: 4px;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.cral-cal__past-grid--carousel .cral-cal-product {
+    cursor: pointer;
+}
+
+.cral-cal__past-grid--carousel.is-dragging {
+    cursor: grabbing;
+    scroll-snap-type: none;
+    scroll-behavior: auto;
+}
+
+.cral-cal__past-grid--carousel.is-dragging .cral-cal-product {
+    pointer-events: none;
+    cursor: grabbing;
 }
 
 .cral-cal__past-grid--carousel::-webkit-scrollbar {

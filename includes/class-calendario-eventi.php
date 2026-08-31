@@ -93,7 +93,7 @@ class Calendario_Eventi {
         self::$assets_enqueued = true;
 
         $base = plugin_dir_url( dirname( __FILE__ ) );
-        $ver  = '1.6.7';
+        $ver  = '1.7.4';
 
         wp_enqueue_style(
             'g-event-calendario-font',
@@ -101,8 +101,8 @@ class Calendario_Eventi {
             array(),
             null
         );
-        wp_enqueue_style( 'g-event-frontend', $base . 'assets/css/frontend.css', array(), '1.1.9' );
-        wp_enqueue_style( 'g-event-scheda', $base . 'assets/css/scheda-evento.css', array(), '1.0.0' );
+        wp_enqueue_style( 'g-event-frontend', $base . 'assets/css/frontend.css', array(), '1.1.10' );
+        wp_enqueue_style( 'g-event-scheda', $base . 'assets/css/scheda-evento.css', array(), '2.2.7' );
         wp_enqueue_style(
             'g-event-calendario',
             $base . 'assets/css/calendario-eventi.css',
@@ -134,13 +134,15 @@ class Calendario_Eventi {
                     'prossimo'           => 'Prossimo evento',
                     'listaMese'          => 'Eventi del mese di',
                     'oggi'               => 'Oggi',
-                    'eventiGiorno'       => 'Eventi del',
+                    'eventiGiorno'       => 'Eventi',
                     'prossimiEventi'     => 'Prossimi eventi',
                     'eventiPassati'      => 'Eventi passati',
                     'nessunPassato'      => 'Nessun evento passato.',
                     'nessunEventoGiorno' => 'Nessun evento in questo giorno.',
+                    'nessunEventoMese'   => 'Nessun evento questo mese',
                     'nessunProssimo'     => 'Nessun prossimo evento in programma.',
                     'selezionaGiorno'    => 'Seleziona un giorno con eventi',
+                    'tornaOggi'          => 'Torna ad oggi',
                 ),
             )
         );
@@ -222,8 +224,8 @@ class Calendario_Eventi {
                     <?php
                     echo esc_html(
                         ! empty( $welcome['logged_in'] )
-                            ? __( 'bentornato', 'g-event' )
-                            : __( 'benvenuto', 'g-event' )
+                            ? __( 'Piacere di rivederti', 'g-event' )
+                            : __( 'Piacere di conoscerti', 'g-event' )
                     );
                     ?>
                 </p>
@@ -842,12 +844,12 @@ class Calendario_Eventi {
      */
     protected function render_day_panel_title( $year, $month, $day ) {
         if ( $day <= 0 ) {
-            return esc_html__( 'Nessun prossimo giorno con eventi', 'g-event' );
+            return esc_html__( 'Nessun evento questo mese', 'g-event' );
         }
 
         $ts = strtotime( sprintf( '%04d-%02d-%02d', $year, $month, $day ) );
         if ( ! $ts ) {
-            return esc_html__( 'Eventi del giorno', 'g-event' );
+            return esc_html__( 'Eventi', 'g-event' );
         }
 
         $giorni = array(
@@ -884,7 +886,7 @@ class Calendario_Eventi {
         $today_d = (int) wp_date( 'j' );
         $prefix  = ( $year === $today_y && $month === $today_m && $day === $today_d )
             ? __( 'Oggi', 'g-event' )
-            : __( 'Eventi del', 'g-event' );
+            : __( 'Eventi', 'g-event' );
 
         return sprintf(
             '%s <span class="cral-cal__list-title-month">%s</span>',
@@ -1122,23 +1124,35 @@ class Calendario_Eventi {
      * @return string
      */
     protected function render_calendar_nav( $year, $month ) {
-        $prev = $this->adjacent_month( $year, $month, -1 );
-        $next = $this->adjacent_month( $year, $month, 1 );
+        $prev     = $this->adjacent_month( $year, $month, -1 );
+        $next     = $this->adjacent_month( $year, $month, 1 );
+        $today_y  = (int) wp_date( 'Y' );
+        $today_m  = (int) wp_date( 'n' );
+        $is_past  = ( $year < $today_y ) || ( $year === $today_y && $month < $today_m );
 
         ob_start();
         ?>
-        <div class="cral-cal__nav">
-            <button type="button" class="cral-cal__nav-btn cral-cal__nav-btn--prev" data-cal-prev
-                    aria-label="<?php echo esc_attr( sprintf( __( 'Vai a %s', 'g-event' ), $prev['name'] ) ); ?>">
-                <span class="cral-cal__nav-btn-arrow" aria-hidden="true">&#8249;</span>
-                <span class="cral-cal__nav-btn-label"><?php echo esc_html( $prev['name'] ); ?></span>
-            </button>
-            <h2 class="cral-cal__month-label" data-cal-month-label><?php echo esc_html( $this->format_month_label( $year, $month ) ); ?></h2>
-            <button type="button" class="cral-cal__nav-btn cral-cal__nav-btn--next" data-cal-next
-                    aria-label="<?php echo esc_attr( sprintf( __( 'Vai a %s', 'g-event' ), $next['name'] ) ); ?>">
-                <span class="cral-cal__nav-btn-label"><?php echo esc_html( $next['name'] ); ?></span>
-                <span class="cral-cal__nav-btn-arrow" aria-hidden="true">&#8250;</span>
-            </button>
+        <div class="cral-cal__nav-wrap" data-cal-nav-wrap>
+            <div class="cral-cal__nav">
+                <button type="button" class="cral-cal__nav-btn cral-cal__nav-btn--prev" data-cal-prev
+                        aria-label="<?php echo esc_attr( sprintf( __( 'Vai a %s', 'g-event' ), $prev['name'] ) ); ?>">
+                    <span class="cral-cal__nav-btn-arrow" aria-hidden="true">&#8249;</span>
+                    <span class="cral-cal__nav-btn-label"><?php echo esc_html( $prev['name'] ); ?></span>
+                </button>
+                <h2 class="cral-cal__month-label" data-cal-month-label><?php echo esc_html( $this->format_month_label( $year, $month ) ); ?></h2>
+                <button type="button" class="cral-cal__nav-btn cral-cal__nav-btn--next" data-cal-next
+                        aria-label="<?php echo esc_attr( sprintf( __( 'Vai a %s', 'g-event' ), $next['name'] ) ); ?>">
+                    <span class="cral-cal__nav-btn-label"><?php echo esc_html( $next['name'] ); ?></span>
+                    <span class="cral-cal__nav-btn-arrow" aria-hidden="true">&#8250;</span>
+                </button>
+            </div>
+            <?php if ( $is_past ) : ?>
+            <div class="cral-cal__nav-today">
+                <button type="button" class="cral-cal__today-btn" data-cal-today>
+                    <?php esc_html_e( 'Torna ad oggi', 'g-event' ); ?>
+                </button>
+            </div>
+            <?php endif; ?>
         </div>
         <?php
         return ob_get_clean();

@@ -1,32 +1,215 @@
 /* =====================================================
-   CRAL – Scheda Evento Shortcode
+   CRAL – Scheda Evento [cral_evento_scheda]
+   Fondo grigio chiaro · testo scuro · accenti verdino
    ===================================================== */
 
 .cral-scheda {
-    --cral-primary:     #2563eb;
-    --cral-primary-dk:  #1d4ed8;
-    --cral-success:     #16a34a;
-    --cral-error:       #dc2626;
-    --cral-warning:     #d97706;
-    --cral-neutral:     #64748b;
-    --cral-bg:          #f8fafc;
-    --cral-border:      #e2e8f0;
-    --cral-radius:      10px;
-    --cral-shadow:      0 2px 12px rgba(0,0,0,.07);
+    --cral-primary: #7fa83a;
+    --cral-primary-dk: #6b912f;
+    --cral-success: #166534;
+    --cral-error: #b91c1c;
+    --cral-warning: #92400e;
+    --cral-neutral: #5b6472;
+    --cral-bg: #f3f4f6;
+    --cral-surface: #ffffff;
+    --cral-border: #d1d5db;
+    --cral-radius: 12px;
+    --cral-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+    --cral-cat: #a7c957;
+    --cral-cat-fg: #111827;
+    --cral-text: #111827;
+    --cral-muted: #4b5563;
+    --cral-fill: 0%;
 
-    font-family: inherit;
-    max-width: 720px;
-    margin: 0 auto;
-    color: #1e293b;
+    font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    color: var(--cral-text);
+    background: transparent;
+    box-sizing: border-box;
 }
 
-/* ── INFO SECTION ──────────────────────────────────── */
-.cral-scheda__info {
-    background: var(--cral-bg);
-    border: 1px solid var(--cral-border);
-    border-radius: var(--cral-radius);
-    padding: 28px 32px;
-    margin-bottom: 0;
+.cral-scheda *,
+.cral-scheda *::before,
+.cral-scheda *::after {
+    box-sizing: border-box;
+}
+
+.elementor-widget-shortcode:has(.cral-scheda) .elementor-widget-container,
+.elementor-shortcode:has(.cral-scheda) .elementor-widget-container {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* Fasce full-bleed: spezzano il contenitore Elementor e vanno a tutta la viewport */
+.cral-scheda__band--top,
+.cral-scheda__band--body {
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+    width: 100vw;
+    max-width: 100vw;
+    box-sizing: border-box;
+}
+
+.cral-scheda__band--top {
+    background:
+        radial-gradient(1200px 420px at 85% 20%, rgba(167, 201, 87, 0.14), transparent 60%),
+        linear-gradient(160deg, #2c333b 0%, #23282f 55%, #1c2127 100%);
+    color: #f3f4f6;
+    padding: 24px 0 28px;
+}
+
+.cral-scheda__band--body {
+    background: #eef0f3;
+    color: var(--cral-text);
+    padding: 20px 0 36px;
+}
+
+.cral-scheda__inner {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+    box-sizing: border-box;
+}
+
+/* ── TOP IMDb-style: testo sx / poster dx ───────────── */
+.cral-scheda__top {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.85fr);
+    gap: 18px 28px;
+    align-items: start;
+    margin: 0;
+}
+
+.cral-scheda__top--no-media {
+    grid-template-columns: 1fr;
+}
+
+.cral-scheda__intro {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+    padding: 4px 0 8px;
+}
+
+.cral-scheda__hero-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 10px;
+}
+
+.cral-scheda__cat {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.3;
+}
+
+.cral-scheda__title {
+    margin: 0;
+    font-size: clamp(1.45rem, 2.8vw, 2.1rem);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    color: #fff;
+    max-width: none;
+    text-shadow: none;
+}
+
+.cral-scheda__excerpt {
+    margin: 10px 0 0;
+    font-size: .86rem;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.72);
+    max-width: 34rem;
+}
+
+.cral-scheda__poster {
+    margin: 0;
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #111827;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
+    aspect-ratio: 16 / 10;
+    min-height: 140px;
+}
+
+.cral-scheda__poster-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Info sotto excerpt: niente sfondo, icone colorate */
+.cral-scheda__facts-inline {
+    list-style: none;
+    margin: 16px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 22px;
+}
+
+.cral-scheda__fi {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.cral-scheda__fi-icon {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+}
+
+.cral-scheda__fi-icon svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.cral-scheda__fi--date .cral-scheda__fi-icon { color: #fbbf24; }
+.cral-scheda__fi--time .cral-scheda__fi-icon { color: #38bdf8; }
+.cral-scheda__fi--place .cral-scheda__fi-icon { color: #fb7185; }
+.cral-scheda__fi--deadline .cral-scheda__fi-icon { color: #c4b5fd; }
+.cral-scheda__fi--opening .cral-scheda__fi-icon { color: #67e8f9; }
+
+.cral-scheda__fi-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.cral-scheda__fi-text strong {
+    font-size: .92rem;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+    text-transform: capitalize;
+}
+
+.cral-scheda__fi-text span {
+    font-size: .68rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: lowercase;
 }
 
 /* Badge stato */
@@ -35,213 +218,405 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;
-    border-radius: 12px;
-    padding: 8px 16px;
-    margin-bottom: 20px;
+    border-radius: 999px;
+    padding: 5px 12px;
+    margin: 0;
+    border: 1px solid transparent;
 }
 .cral-scheda__badge-title {
-    font-size: .72rem;
+    font-size: .68rem;
     font-weight: 700;
-    letter-spacing: .07em;
+    letter-spacing: .06em;
     text-transform: uppercase;
     line-height: 1.2;
 }
 .cral-scheda__badge-sub {
     font-size: .68rem;
     font-weight: 500;
-    letter-spacing: .03em;
-    text-transform: none;
-    opacity: .82;
+    opacity: .85;
     line-height: 1.3;
 }
-.cral-scheda__badge--aperto   { background: #dcfce7; color: #166534; }
-.cral-scheda__badge--soldout  { background: #fee2e2; color: #991b1b; }
-.cral-scheda__badge--chiuse   { background: #ffedd5; color: #9a3412; }
-.cral-scheda__badge--presto   { background: #eff6ff; color: #1e40af; }
-.cral-scheda__badge--programmato { background: #fef9c3; color: #92400e; }
-.cral-scheda__badge--concluso { background: #fee2e2; color: #991b1b; }
-.cral-scheda__badge--annullato{ background: #fef9c3; color: #92400e; }
-
-/* Griglia meta */
-.cral-scheda__meta-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
+.cral-scheda__badge--aperto {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #86efac;
 }
-.cral-scheda__meta-item {
-    background: #fff;
+.cral-scheda__badge--soldout,
+.cral-scheda__badge--concluso,
+.cral-scheda__badge--annullato {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #fca5a5;
+}
+.cral-scheda__badge--chiuse {
+    background: #ffedd5;
+    color: #9a3412;
+    border-color: #fdba74;
+}
+.cral-scheda__badge--presto,
+.cral-scheda__badge--programmato {
+    background: #e0f2fe;
+    color: #075985;
+    border-color: #7dd3fc;
+}
+
+/* ── SHELL 2 COLONNE ───────────────────────────────── */
+.cral-scheda__shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.9fr);
+    gap: 18px 24px;
+    align-items: start;
+    width: 100%;
+}
+
+.cral-scheda__main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.cral-scheda__aside {
+    min-width: 0;
+    position: sticky;
+    top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Snapshot info sopra il box prenotazione — senza sfondo */
+.cral-scheda__book-snap {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    background: none;
+    border: none;
+}
+
+.cral-scheda__book-snap-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.cral-scheda__book-snap-icon {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    margin-top: 2px;
+}
+
+.cral-scheda__book-snap-icon svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.cral-scheda__book-snap-item--seats .cral-scheda__book-snap-icon {
+    color: #6366f1;
+}
+
+.cral-scheda__book-snap-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.cral-scheda__book-snap-kicker {
+    font-size: .6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--cral-neutral);
+}
+
+.cral-scheda__book-snap-val {
+    font-size: 1rem;
+    font-weight: 750;
+    line-height: 1.2;
+    color: var(--cral-text);
+}
+
+.cral-scheda__book-snap-val em {
+    font-style: normal;
+    font-weight: 500;
+    font-size: .72rem;
+    color: var(--cral-neutral);
+    margin-left: 3px;
+}
+
+.cral-scheda__fill {
+    height: 5px;
+    border-radius: 999px;
+    background: #e5e7eb;
+    overflow: hidden;
+    margin-top: 6px;
+    max-width: 100%;
+}
+
+.cral-scheda__fill-bar {
+    display: block;
+    height: 100%;
+    width: var(--cral-fill, 0%);
+    border-radius: inherit;
+    background: linear-gradient(90deg, #818cf8, #6366f1);
+}
+
+.cral-scheda__section-title {
+    margin: 0 0 14px;
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--cral-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cral-scheda__section-title::before {
+    content: '';
+    width: 22px;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--cral-primary), transparent);
+    flex-shrink: 0;
+}
+
+/* Facts */
+.cral-scheda__facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.cral-scheda__fact {
+    background: var(--cral-surface);
     border: 1px solid var(--cral-border);
-    border-radius: 8px;
+    border-radius: 12px;
     padding: 14px 16px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-}
-.cral-scheda__meta-icon {
-    font-size: 1.25rem;
-    line-height: 1;
-}
-.cral-scheda__meta-label {
-    font-size: .72rem;
-    color: var(--cral-neutral);
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    font-weight: 600;
-}
-.cral-scheda__meta-value {
-    font-size: .95rem;
-    font-weight: 600;
-    color: #0f172a;
+    gap: 6px;
+    border-left: 3px solid var(--cral-cat, #a7c957);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
-/* Prezzi */
-.cral-scheda__prezzi {
-    border-top: 1px solid var(--cral-border);
-    padding-top: 18px;
-}
-.cral-scheda__prezzi-title {
-    font-size: .8rem;
+.cral-scheda__fact-label {
+    font-size: .68rem;
     font-weight: 700;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
-    letter-spacing: .07em;
     color: var(--cral-neutral);
-    margin: 0 0 12px;
 }
+
+.cral-scheda__fact-value {
+    font-size: .95rem;
+    font-weight: 650;
+    color: var(--cral-text);
+    line-height: 1.35;
+}
+
+/* About */
+.cral-scheda__about-body {
+    font-size: .98rem;
+    line-height: 1.65;
+    color: var(--cral-muted);
+}
+
+.cral-scheda__about-body p {
+    margin: 0 0 12px;
+    color: var(--cral-muted);
+}
+
+.cral-scheda__about-body p:last-child {
+    margin-bottom: 0;
+}
+
+/* Prezzi — elenco compatto senza card */
 .cral-scheda__prezzi-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 0;
 }
+
 .cral-scheda__prezzo-row {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    border-radius: 6px;
-    background: #fff;
-    border: 1px solid var(--cral-border);
-    font-size: .9rem;
-}
-.cral-scheda__prezzo-row--base {
-    border-color: var(--cral-primary);
-    background: #eff6ff;
-}
-.cral-scheda__prezzo-label { color: #334155; }
-.cral-scheda__prezzo-max   { font-size: .78rem; color: var(--cral-neutral); margin-left: 6px; font-style: normal; }
-.cral-scheda__prezzo-val   { font-weight: 700; color: #0f172a; white-space: nowrap; }
-.cral-scheda__no-acc       { font-size: .85rem; color: var(--cral-neutral); margin: 0; }
-
-/* ── DIVIDER ───────────────────────────────────────── */
-.cral-scheda__divider {
+    align-items: baseline;
+    gap: 12px;
+    padding: 7px 0;
     border: none;
-    border-top: 2px solid var(--cral-border);
+    border-bottom: 1px solid #dde1e7;
+    border-radius: 0;
+    background: transparent;
+    font-size: .88rem;
+}
+
+.cral-scheda__prezzo-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.cral-scheda__prezzo-row--base {
+    border-color: #dde1e7;
+    background: transparent;
+    font-weight: 650;
+}
+
+.cral-scheda__prezzo-row--base .cral-scheda__prezzo-val {
+    color: #3f6212;
+}
+
+.cral-scheda__prezzo-label {
+    color: #334155;
+}
+
+.cral-scheda__prezzo-max {
+    font-size: .72rem;
+    color: var(--cral-neutral);
+    margin-left: 5px;
+    font-style: normal;
+}
+
+.cral-scheda__prezzo-val {
+    font-weight: 750;
+    color: var(--cral-text);
+    white-space: nowrap;
+}
+
+.cral-scheda__no-acc {
+    font-size: .88rem;
+    color: var(--cral-neutral);
     margin: 0;
 }
 
-/* ── PRENOTA SECTION ───────────────────────────────── */
+/* ── PRENOTA PANEL ─────────────────────────────────── */
 .cral-scheda__prenota {
-    background: #fff;
+    background: var(--cral-surface);
     border: 1px solid var(--cral-border);
-    border-top: none;
-    border-radius: 0 0 var(--cral-radius) var(--cral-radius);
-    padding: 28px 32px;
+    border-radius: var(--cral-radius);
+    padding: 16px 14px;
+    box-shadow: var(--cral-shadow);
 }
 
 .cral-scheda__form-title {
-    font-size: 1.05rem;
-    font-weight: 700;
-    margin: 0 0 20px;
-    color: #0f172a;
+    font-size: .95rem;
+    font-weight: 800;
+    margin: 0 0 12px;
+    color: var(--cral-text);
+    letter-spacing: -0.01em;
 }
 
-/* ── MESSAGES ──────────────────────────────────────── */
+/* Messages */
 .cral-scheda__msg {
-    border-radius: 8px;
-    padding: 14px 18px;
-    font-size: .9rem;
-    margin: 0 0 16px;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: .88rem;
+    margin: 0 0 14px;
+    border: 1px solid transparent;
 }
-.cral-scheda__msg--success { background: #dcfce7; color: #166534; }
-.cral-scheda__msg--error   { background: #fee2e2; color: #991b1b; }
-.cral-scheda__msg--info    { background: #e0f2fe; color: #075985; }
-.cral-scheda__msg--soldout { background: #fee2e2; color: #991b1b; font-size: 1rem; }
+.cral-scheda__msg--success {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #86efac;
+}
+.cral-scheda__msg--error,
+.cral-scheda__msg--soldout {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #fca5a5;
+}
+.cral-scheda__msg--info {
+    background: #e0f2fe;
+    color: #075985;
+    border-color: #7dd3fc;
+}
 
-/* ── LOGIN PROMPT ──────────────────────────────────── */
 .cral-scheda__login-prompt {
     text-align: center;
-    padding: 20px 0;
+    padding: 8px 0;
 }
 .cral-scheda__login-prompt p {
     margin-bottom: 14px;
-    color: #475569;
+    color: var(--cral-muted);
 }
 
-/* ── SOCIO ROW ─────────────────────────────────────── */
 .cral-scheda__socio-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 18px;
-    font-size: .95rem;
+    gap: 10px;
+    background: #f3f8e8;
+    border: 1px solid #c5db8a;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    font-size: .92rem;
 }
-.cral-scheda__socio-label  { font-weight: 600; color: #1e40af; }
-.cral-scheda__socio-prezzo { font-weight: 700; color: #1e40af; }
+.cral-scheda__socio-label { font-weight: 650; color: #3f6212; }
+.cral-scheda__socio-prezzo { font-weight: 750; color: var(--cral-text); }
 
-/* ── FORM FIELDS ───────────────────────────────────── */
-.cral-scheda__field {
-    margin-bottom: 14px;
-}
+/* Form fields */
+.cral-scheda__field { margin-bottom: 14px; }
 .cral-scheda__label {
     display: block;
-    font-size: .8rem;
-    font-weight: 600;
-    color: #475569;
+    font-size: .75rem;
+    font-weight: 650;
+    color: var(--cral-neutral);
     margin-bottom: 5px;
-    letter-spacing: .03em;
+    letter-spacing: .04em;
+    text-transform: uppercase;
 }
 .cral-scheda__input,
 .cral-scheda__select,
 .cral-scheda__textarea {
     width: 100%;
-    box-sizing: border-box;
     border: 1px solid var(--cral-border);
-    border-radius: 7px;
-    padding: 9px 13px;
+    border-radius: 9px;
+    padding: 10px 12px;
     font-size: .9rem;
     font-family: inherit;
     background: #fff;
-    color: #0f172a;
+    color: var(--cral-text);
     transition: border-color .15s, box-shadow .15s;
+}
+.cral-scheda__input::placeholder,
+.cral-scheda__textarea::placeholder {
+    color: #9ca3af;
 }
 .cral-scheda__input:focus,
 .cral-scheda__select:focus,
 .cral-scheda__textarea:focus {
     outline: none;
-    border-color: var(--cral-primary);
-    box-shadow: 0 0 0 3px rgba(37,99,235,.15);
+    border-color: #a7c957;
+    box-shadow: 0 0 0 3px rgba(167, 201, 87, 0.25);
+}
+.cral-scheda__select option {
+    background: #fff;
+    color: var(--cral-text);
 }
 .cral-scheda__textarea { resize: vertical; min-height: 64px; }
 
-/* ── ACCOMPAGNATORI ────────────────────────────────── */
+/* Accompagnatori */
 .cral-scheda__acc-section {
-    border: 1px dashed var(--cral-border);
-    border-radius: 8px;
-    padding: 18px 20px;
-    margin-bottom: 18px;
-    background: var(--cral-bg);
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 16px;
+    background: #f8fafc;
 }
 .cral-scheda__acc-title {
-    font-size: .85rem;
+    font-size: .75rem;
     font-weight: 700;
     color: var(--cral-neutral);
     text-transform: uppercase;
     letter-spacing: .06em;
-    margin: 0 0 14px;
+    margin: 0 0 12px;
 }
 .cral-scheda__acc-list {
     display: flex;
@@ -251,30 +626,25 @@
 }
 .cral-scheda__acc-row {
     background: #fff;
-    border: 1.5px solid #bfdbfe;
+    border: 1px solid #c5db8a;
     border-radius: 10px;
-    padding: 0;
     overflow: hidden;
-    box-shadow: 0 1px 4px rgba(59,130,246,.07);
 }
-/* Header card accompagnatore */
 .cral-scheda__acc-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #eff6ff;
-    border-bottom: 1px solid #bfdbfe;
+    background: #f3f8e8;
+    border-bottom: 1px solid #c5db8a;
     padding: 7px 12px;
 }
 .cral-scheda__acc-num {
-    font-size: .75rem;
+    font-size: .72rem;
     font-weight: 700;
-    color: #1d4ed8;
+    color: #3f6212;
     text-transform: uppercase;
     letter-spacing: .05em;
 }
-
-/* Griglia campi */
 .cral-scheda__acc-fields {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -288,7 +658,7 @@
     margin-bottom: 0;
 }
 .cral-scheda__acc-fields .cral-scheda__label {
-    font-size: .72rem;
+    font-size: .68rem;
     margin-bottom: 3px;
 }
 .cral-scheda__acc-fields .cral-scheda__input,
@@ -296,111 +666,121 @@
     padding: 7px 10px;
     font-size: .85rem;
     height: 36px;
-    width: 100%;
-    box-sizing: border-box;
 }
 
-@media (max-width: 480px) {
-    .cral-scheda__acc-fields { grid-template-columns: 1fr; }
-    .cral-scheda__field--half,
-    .cral-scheda__field--select { grid-column: span 1; }
-}
-
-/* ── TOTALE ────────────────────────────────────────── */
+/* Totale */
 .cral-scheda__totale {
-    font-size: 1rem;
+    font-size: .95rem;
     color: #334155;
-    background: var(--cral-bg);
-    border: 1px solid var(--cral-border);
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 16px;
-}
-.cral-scheda__totale strong { color: #0f172a; font-size: 1.1rem; }
-.cral-scheda__totale-sub    { font-size: .8rem; color: var(--cral-neutral); margin-left: 8px; }
-
-/* ── FEEDBACK ──────────────────────────────────────── */
-.cral-scheda__feedback {
-    border-radius: 8px;
-    padding: 12px 16px;
-    font-size: .88rem;
+    background: #f3f8e8;
+    border: 1px solid #c5db8a;
+    border-radius: 10px;
+    padding: 12px 14px;
     margin-bottom: 14px;
 }
-.cral-scheda__feedback--error   { background: #fee2e2; color: #991b1b; }
-.cral-scheda__feedback--success { background: #dcfce7; color: #166534; }
+.cral-scheda__totale strong {
+    color: var(--cral-text);
+    font-size: 1.08rem;
+}
+.cral-scheda__totale-sub {
+    font-size: .78rem;
+    color: var(--cral-neutral);
+    margin-left: 8px;
+}
 
-/* ── BUTTONS ───────────────────────────────────────── */
+.cral-scheda__feedback {
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: .86rem;
+    margin-bottom: 14px;
+}
+.cral-scheda__feedback--error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+.cral-scheda__feedback--success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+/* Buttons */
 .cral-scheda__btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     border: none;
-    border-radius: 8px;
-    padding: 10px 20px;
+    border-radius: 999px;
+    padding: 10px 18px;
     font-size: .9rem;
-    font-weight: 600;
+    font-weight: 700;
     font-family: inherit;
     cursor: pointer;
-    transition: background .15s, transform .1s, box-shadow .15s;
+    transition: background .15s, transform .1s, box-shadow .15s, border-color .15s, color .15s;
     text-decoration: none;
 }
 .cral-scheda__btn--primary {
-    background: var(--cral-primary);
-    color: #fff;
+    background: #a7c957;
+    color: #111827;
     width: 100%;
     justify-content: center;
     padding: 13px 20px;
     font-size: .95rem;
 }
-.cral-scheda__btn--primary:hover  { background: var(--cral-primary-dk); box-shadow: 0 4px 12px rgba(37,99,235,.35); }
+.cral-scheda__btn--primary:hover {
+    background: #96b84a;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
 .cral-scheda__btn--primary:active { transform: scale(.98); }
-.cral-scheda__btn--primary:disabled { background: #93c5fd; cursor: not-allowed; box-shadow: none; }
+.cral-scheda__btn--primary:disabled {
+    background: #d4e3a8;
+    color: #6b7280;
+    cursor: not-allowed;
+    box-shadow: none;
+}
 
 .cral-scheda__btn--secondary {
-    background: #f1f5f9;
+    background: #f3f4f6;
     color: #334155;
     border: 1px solid var(--cral-border);
 }
-.cral-scheda__btn--secondary:hover { background: #e2e8f0; }
+.cral-scheda__btn--secondary:hover {
+    background: #e5e7eb;
+}
 
 .cral-scheda__btn--add {
     background: transparent;
-    color: var(--cral-primary);
-    border: 1.5px dashed var(--cral-primary);
+    color: #3f6212;
+    border: 1.5px dashed #a7c957;
     font-size: .85rem;
     padding: 8px 16px;
     width: 100%;
     justify-content: center;
 }
-.cral-scheda__btn--add:hover { background: #eff6ff; }
+.cral-scheda__btn--add:hover {
+    background: #f3f8e8;
+}
 
 .cral-scheda__btn--remove {
     background: transparent;
-    color: #dc2626;
+    color: #b91c1c;
     border: 1px solid #fca5a5;
-    border-radius: 5px;
-    padding: 3px 8px;
+    border-radius: 999px;
+    padding: 3px 10px;
     font-size: .72rem;
-    font-weight: 600;
+    font-weight: 650;
     cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    line-height: 1.4;
-    transition: background .15s, border-color .15s;
 }
 .cral-scheda__btn--remove:hover {
     background: #fee2e2;
-    border-color: #dc2626;
 }
 
 .cral-scheda__submit-wrap { margin-top: 6px; }
 
-/* ── RIEPILOGO ─────────────────────────────────────── */
+/* Riepilogo */
 .cral-scheda__riepilogo {
-    background: var(--cral-bg);
+    background: #f8fafc;
     border: 1px solid var(--cral-border);
-    border-radius: 8px;
+    border-radius: 10px;
     overflow: hidden;
     margin: 14px 0;
 }
@@ -408,35 +788,37 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 16px;
-    font-size: .88rem;
-    border-bottom: 1px solid var(--cral-border);
+    padding: 10px 14px;
+    font-size: .86rem;
+    border-bottom: 1px solid #e5e7eb;
+    color: #334155;
 }
 .cral-scheda__riepilogo-row:last-child { border-bottom: none; }
+.cral-scheda__riepilogo-row strong { color: var(--cral-text); }
 .cral-scheda__riepilogo-row--head {
-    background: #f1f5f9;
-    font-size: .75rem;
+    background: #eef2f7;
+    font-size: .72rem;
     text-transform: uppercase;
     letter-spacing: .05em;
     color: var(--cral-neutral);
     font-weight: 700;
 }
 .cral-scheda__riepilogo-row--total {
-    background: #eff6ff;
-    font-weight: 700;
+    background: #f3f8e8;
+    font-weight: 750;
     font-size: .95rem;
-    color: #1e40af;
+    color: #3f6212;
 }
 .cral-scheda__riepilogo-row--sub-head {
     background: #f8fafc;
-    font-size: .75rem;
+    font-size: .72rem;
     text-transform: uppercase;
     letter-spacing: .04em;
     color: var(--cral-neutral);
 }
 .cral-scheda__riepilogo-row--acc {
-    padding-left: 24px;
-    color: #374151;
+    padding-left: 22px;
+    color: #475569;
 }
 .cral-scheda__acc-nome-wrap {
     display: flex;
@@ -448,12 +830,12 @@
     color: var(--cral-neutral);
     font-style: italic;
 }
-/* ── NOTE BLOCK ─────────────────────────────────────── */
+
+/* Note */
 .cral-scheda__note-block {
-    border-top: 1px solid var(--cral-border);
-    padding: 12px 16px 14px;
+    border-top: 1px solid #fcd34d;
+    padding: 12px 14px 14px;
     background: #fffbeb;
-    border-radius: 0 0 8px 8px;
 }
 .cral-scheda__note-label {
     font-size: .7rem;
@@ -469,9 +851,7 @@
     max-height: 3.8em;
     transition: max-height .3s ease;
 }
-.cral-scheda__note-body.is-expanded {
-    max-height: 600px;
-}
+.cral-scheda__note-body.is-expanded { max-height: 600px; }
 .cral-scheda__note-text {
     font-size: .78rem;
     color: #78350f;
@@ -501,7 +881,7 @@
     text-underline-offset: 2px;
 }
 
-/* ── ANNULLA ────────────────────────────────────────── */
+/* Annulla */
 .cral-scheda__annulla-wrap {
     margin-top: 14px;
     display: flex;
@@ -510,14 +890,13 @@
 }
 .cral-scheda__btn--annulla {
     background: transparent;
-    color: #dc2626;
+    color: #b91c1c;
     border: 1px solid #fca5a5;
-    border-radius: 8px;
+    border-radius: 999px;
     padding: 9px 18px;
     font-size: .85rem;
-    font-weight: 600;
+    font-weight: 650;
     cursor: pointer;
-    transition: background .15s, border-color .15s;
     align-self: flex-start;
 }
 .cral-scheda__btn--annulla:hover {
@@ -531,23 +910,89 @@
 }
 .cral-scheda__annulla-deadline {
     font-size: .82rem;
-    color: #374151;
+    color: #475569;
     margin: 0 0 8px;
 }
-.cral-scheda__annulla-deadline strong { color: #1d4ed8; }
+.cral-scheda__annulla-deadline strong { color: #3f6212; }
 .cral-scheda__annulla-scaduto {
     font-size: .82rem;
     color: #b91c1c;
     margin: 0 0 8px;
 }
 
-/* ── CONFERMA ──────────────────────────────────────── */
-.cral-scheda__conferma-inner { padding: 4px 0; }
-.cral-scheda__conferma-note  { font-size: .85rem; color: var(--cral-neutral); margin-top: 8px; }
+.cral-scheda__conferma-inner { padding: 4px 0; color: var(--cral-muted); }
+.cral-scheda__conferma-note {
+    font-size: .85rem;
+    color: var(--cral-neutral);
+    margin-top: 8px;
+}
 
 /* ── RESPONSIVE ────────────────────────────────────── */
-@media (max-width: 600px) {
-    .cral-scheda__info,
-    .cral-scheda__prenota { padding: 20px 16px; }
-    .cral-scheda__meta-grid { grid-template-columns: 1fr; }
+@media (max-width: 960px) {
+    .cral-scheda__top {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .cral-scheda__poster {
+        aspect-ratio: 16 / 9;
+        min-height: 180px;
+        order: -1;
+    }
+
+    .cral-scheda__shell {
+        grid-template-columns: 1fr;
+        gap: 22px;
+    }
+
+    .cral-scheda__aside {
+        position: static;
+    }
+
+    .cral-scheda__book-snap {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 12px 20px;
+    }
+
+    .cral-scheda__book-snap-item {
+        flex: 1 1 40%;
+        min-width: 140px;
+    }
+}
+
+@media (max-width: 560px) {
+    .cral-scheda__band--top {
+        padding: 20px 0 24px;
+    }
+
+    .cral-scheda__band--body {
+        padding: 22px 0 36px;
+    }
+
+    .cral-scheda__facts-inline {
+        gap: 12px 16px;
+    }
+
+    .cral-scheda__book-snap {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .cral-scheda__title {
+        max-width: none;
+    }
+
+    .cral-scheda__acc-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .cral-scheda__field--half,
+    .cral-scheda__field--select {
+        grid-column: span 1;
+    }
+
+    .cral-scheda__prenota {
+        padding: 18px 14px;
+    }
 }

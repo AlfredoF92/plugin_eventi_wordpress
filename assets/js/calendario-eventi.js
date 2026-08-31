@@ -91,7 +91,7 @@
 
     function formatDayTitle(root, day, events) {
         if (!day) {
-            return escapeHtml(i18n.nessunEventoGiorno || 'Nessun evento in questo giorno.');
+            return escapeHtml(i18n.nessunEventoMese || 'Nessun evento questo mese');
         }
 
         var label = '';
@@ -105,7 +105,7 @@
         var month = parseInt(root.dataset.month, 10);
         var now = new Date();
         var isToday = year === now.getFullYear() && month === (now.getMonth() + 1) && day === now.getDate();
-        var prefix = isToday ? (i18n.oggi || 'Oggi') : (i18n.eventiGiorno || 'Eventi del');
+        var prefix = isToday ? (i18n.oggi || 'Oggi') : (i18n.eventiGiorno || 'Eventi');
 
         return escapeHtml(prefix) + ' <span class="cral-cal__list-title-month">' + escapeHtml(label) + '</span>';
     }
@@ -177,9 +177,14 @@
         root.dataset.focusDay = String(data.focusDay || 0);
 
         if (data.navHtml) {
-            var nav = root.querySelector('.cral-cal__nav');
-            if (nav) {
-                nav.outerHTML = data.navHtml;
+            var navWrap = root.querySelector('[data-cal-nav-wrap]');
+            if (navWrap) {
+                navWrap.outerHTML = data.navHtml;
+            } else {
+                var nav = root.querySelector('.cral-cal__nav');
+                if (nav) {
+                    nav.outerHTML = data.navHtml;
+                }
             }
         } else {
             var label = root.querySelector('[data-cal-month-label]');
@@ -275,7 +280,7 @@
 
         var titleEl = modal.querySelector('[data-cal-modal-day-title]');
         var listEl = modal.querySelector('[data-cal-modal-day-list]');
-        var dayLabel = events[0].data_estesa || ((i18n.eventiGiorno || 'Eventi del') + ' ' + day);
+        var dayLabel = events[0].data_estesa || ((i18n.eventiGiorno || 'Eventi') + ' ' + day);
 
         if (titleEl) {
             titleEl.textContent = dayLabel;
@@ -322,6 +327,18 @@
         }
 
         fetchMonth(root, year, month)
+            .then(function (data) {
+                applyMonthData(root, data);
+            })
+            .catch(function () {
+                window.alert('Impossibile caricare il calendario. Riprova.');
+            });
+    }
+
+    function goToToday(root) {
+        var now = new Date();
+        closeModal(root);
+        fetchMonth(root, now.getFullYear(), now.getMonth() + 1)
             .then(function (data) {
                 applyMonthData(root, data);
             })
@@ -400,7 +417,111 @@
         track._cralCarouselBound = true;
         track.addEventListener('scroll', updateFn, { passive: true });
         window.addEventListener('resize', updateFn);
+        bindCarouselDrag(track, updateFn);
         updateFn();
+    }
+
+    /**
+     * Drag con mouse + swipe nativo touch (overflow).
+     * Il drag parte solo dopo una soglia: il click sulla scheda resta cliccabile.
+     */
+    function bindCarouselDrag(track, updateFn) {
+        var pending = false;
+        var dragging = false;
+        var suppressClick = false;
+        var startX = 0;
+        var startScroll = 0;
+        var activePointer = null;
+        var DRAG_THRESHOLD = 3;
+
+        function setDraggingUi(on) {
+            track.classList.toggle('is-dragging', !!on);
+            if (on) {
+                track.style.scrollBehavior = 'auto';
+                track.style.scrollSnapType = 'none';
+            } else {
+                track.style.scrollBehavior = '';
+                track.style.scrollSnapType = '';
+            }
+        }
+
+        function resetDragState() {
+            pending = false;
+            dragging = false;
+            activePointer = null;
+            setDraggingUi(false);
+        }
+
+        track.addEventListener('pointerdown', function (e) {
+            if (e.pointerType !== 'mouse' || e.button !== 0) {
+                return;
+            }
+            // Non intercettare subito: aspetta il movimento.
+            pending = true;
+            dragging = false;
+            suppressClick = false;
+            startX = e.clientX;
+            startScroll = track.scrollLeft;
+            activePointer = e.pointerId;
+        });
+
+        track.addEventListener('pointermove', function (e) {
+            if ((!pending && !dragging) || e.pointerId !== activePointer) {
+                return;
+            }
+
+            var dx = e.clientX - startX;
+
+            if (!dragging) {
+                if (Math.abs(dx) < DRAG_THRESHOLD) {
+                    return;
+                }
+                dragging = true;
+                pending = false;
+                suppressClick = true;
+                try {
+                    track.setPointerCapture(e.pointerId);
+                } catch (err) { /* ignore */ }
+                setDraggingUi(true);
+                // Riallinea lo scroll al punto di partenza del drag effettivo.
+                startScroll = track.scrollLeft;
+                startX = e.clientX;
+                dx = 0;
+            }
+
+            track.scrollLeft = startScroll - dx;
+        });
+
+        function endDrag(e) {
+            if (activePointer !== null && e && e.pointerId !== activePointer) {
+                return;
+            }
+            var wasDragging = dragging;
+            resetDragState();
+            if (wasDragging) {
+                updateFn();
+            }
+        }
+
+        track.addEventListener('pointerup', endDrag);
+        track.addEventListener('pointercancel', endDrag);
+        track.addEventListener('lostpointercapture', function (e) {
+            if (dragging) {
+                endDrag(e);
+            } else {
+                resetDragState();
+            }
+        });
+
+        // Blocca il click solo se c'è stato un vero drag.
+        track.addEventListener('click', function (e) {
+            if (!suppressClick) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            suppressClick = false;
+        }, true);
     }
 
     function bindUpcomingCarousel(root) {
@@ -454,6 +575,13 @@
             var next = e.target.closest('[data-cal-next]');
             if (next) {
                 changeMonth(root, 1);
+                return;
+            }
+
+            var todayBtn = e.target.closest('[data-cal-today]');
+            if (todayBtn) {
+                e.preventDefault();
+                goToToday(root);
                 return;
             }
 

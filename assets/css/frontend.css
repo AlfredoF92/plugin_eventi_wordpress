@@ -1002,9 +1002,9 @@
 /* ── FOOTER [footer-custom] — solo testo, 4 colonne ─────────────────────── */
 .cral-footer {
     width: 100%;
-    max-width: 1120px;
-    margin: 0 auto;
-    padding: 28px 0 36px;
+    max-width: none;
+    margin: 0;
+    padding: 0;
     background: transparent;
     box-sizing: border-box;
     font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
@@ -1133,10 +1133,6 @@
 }
 
 @media (max-width: 520px) {
-    .cral-footer {
-        padding: 22px 0 28px;
-    }
-
     .cral-footer__grid {
         grid-template-columns: 1fr;
         gap: 22px;

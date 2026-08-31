@@ -31,13 +31,13 @@ class Booking {
             'g-event-frontend',
             plugins_url( '../assets/css/frontend.css', __FILE__ ),
             array(),
-            '1.1.9'
+            '1.1.10'
         );
         wp_enqueue_style(
             'g-event-scheda',
             plugins_url( '../assets/css/scheda-evento.css', __FILE__ ),
             array(),
-            '1.0.0'
+            '2.2.7'
         );
     }
 
