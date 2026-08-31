@@ -7,12 +7,12 @@
     function parseEventsJson(root) {
         var node = root.querySelector('[data-cal-events-json]');
         if (!node) {
-            return { byDay: {}, flat: [] };
+            return { byDay: {}, flat: [], focusDay: 0 };
         }
         try {
             return JSON.parse(node.textContent || '{}');
         } catch (e) {
-            return { byDay: {}, flat: [] };
+            return { byDay: {}, flat: [], focusDay: 0 };
         }
     }
 
@@ -74,9 +74,107 @@
             });
     }
 
+    function clearActiveDay(root) {
+        root.querySelectorAll('.cral-cal__cell.is-active-day, .cral-cal__cell.is-selected').forEach(function (el) {
+            el.classList.remove('is-active-day', 'is-selected');
+        });
+    }
+
+    function setActiveDay(root, day) {
+        clearActiveDay(root);
+        var cell = root.querySelector('.cral-cal__cell[data-cal-day="' + day + '"]');
+        if (cell) {
+            cell.classList.add('is-active-day', 'is-selected');
+        }
+        root.dataset.focusDay = String(day || 0);
+    }
+
+    function formatDayTitle(root, day, events) {
+        if (!day) {
+            return escapeHtml(i18n.nessunEventoGiorno || 'Nessun evento in questo giorno.');
+        }
+
+        var label = '';
+        if (events && events[0] && events[0].data_estesa) {
+            label = events[0].data_estesa;
+        } else {
+            label = String(day);
+        }
+
+        var year = parseInt(root.dataset.year, 10);
+        var month = parseInt(root.dataset.month, 10);
+        var now = new Date();
+        var isToday = year === now.getFullYear() && month === (now.getMonth() + 1) && day === now.getDate();
+        var prefix = isToday ? (i18n.oggi || 'Oggi') : (i18n.eventiGiorno || 'Eventi del');
+
+        return escapeHtml(prefix) + ' <span class="cral-cal__list-title-month">' + escapeHtml(label) + '</span>';
+    }
+
+    function renderDayListHtml(events) {
+        if (!events || !events.length) {
+            return '<p class="cral-cal__empty">' + escapeHtml(i18n.nessunEventoGiorno || 'Nessun evento in questo giorno.') + '</p>';
+        }
+
+        return events.map(function (ev) {
+            var img = ev.thumb_md || ev.thumb;
+            var thumb = img
+                ? '<img src="' + escapeHtml(img) + '" alt="" class="cral-cal-thumb" loading="lazy">'
+                : '<span class="cral-cal-thumb cral-cal-thumb--placeholder" aria-hidden="true">&#127917;</span>';
+
+            var catBg = ev.categoria_colore || '#a7c957';
+            var catFg = ev.categoria_testo || '#111827';
+            var mod = ev.stato_mod || 'aperto';
+            var when = ev.data_card || ev.ora || '';
+
+            var meta = '';
+            if (ev.luogo) {
+                meta = '<span class="cral-cal-list__meta"><span class="cral-cal-list__meta-luogo">' + escapeHtml(ev.luogo) + '</span></span>';
+            }
+
+            var cat = ev.categoria
+                ? '<span class="cral-cal-list__cat" style="background:' + escapeHtml(catBg) + ';color:' + escapeHtml(catFg) + '">' + escapeHtml(ev.categoria) + '</span>'
+                : '';
+
+            var stato = ev.stato_label
+                ? '<span class="cral-cal-list__stato cral-cal-product__stato cral-cal-product__stato--' + escapeHtml(mod) + '">' + escapeHtml(ev.stato_label) + '</span>'
+                : '';
+
+            var parti = '<span class="cral-cal-list__parti">' +
+                escapeHtml(String(ev.partecipanti || 0)) + ' / ' + escapeHtml(String(ev.posti_totali || 0)) + ' posti</span>';
+
+            return '<article class="cral-cal-list__item cral-cal-list__item--day" data-event-id="' + escapeHtml(String(ev.id)) + '" style="--cral-cat:' + escapeHtml(catBg) + ';">' +
+                '<a class="cral-cal-list__btn" href="' + escapeHtml(ev.url || '#') + '">' +
+                    '<span class="cral-cal-list__thumb-wrap">' + thumb + '</span>' +
+                    '<span class="cral-cal-list__body">' +
+                        (when ? '<span class="cral-cal-list__when">' + escapeHtml(when) + '</span>' : '') +
+                        '<span class="cral-cal-list__title">' + escapeHtml(ev.title) + '</span>' +
+                        meta +
+                        '<span class="cral-cal-list__meta-row">' + cat + stato + parti + '</span>' +
+                    '</span>' +
+                '</a>' +
+            '</article>';
+        }).join('');
+    }
+
+    function updateDayPanel(root, day) {
+        var events = getDayEvents(root, day);
+        var titleEl = root.querySelector('[data-cal-day-title]');
+        var listEl = root.querySelector('[data-cal-day-list]');
+
+        if (titleEl) {
+            titleEl.innerHTML = formatDayTitle(root, day, events);
+        }
+        if (listEl) {
+            listEl.innerHTML = renderDayListHtml(events);
+        }
+
+        setActiveDay(root, day);
+    }
+
     function applyMonthData(root, data) {
         root.dataset.year = String(data.year);
         root.dataset.month = String(data.month);
+        root.dataset.focusDay = String(data.focusDay || 0);
 
         if (data.navHtml) {
             var nav = root.querySelector('.cral-cal__nav');
@@ -95,40 +193,35 @@
             grid.innerHTML = data.calendarHtml || '';
         }
 
-        var list = root.querySelector('[data-cal-list]');
-        if (list) {
-            list.innerHTML = data.listHtml || '';
+        var dayTitle = root.querySelector('[data-cal-day-title]');
+        if (dayTitle && data.dayTitleHtml) {
+            dayTitle.innerHTML = data.dayTitleHtml;
         }
 
-        var listTitle = root.querySelector('[data-cal-list-title]');
-        if (listTitle && data.listTitleHtml) {
-            listTitle.innerHTML = data.listTitleHtml;
+        var dayList = root.querySelector('[data-cal-day-list]');
+        if (dayList && typeof data.dayListHtml === 'string') {
+            dayList.innerHTML = data.dayListHtml;
+        }
+
+        var upcoming = root.querySelector('[data-cal-upcoming]');
+        if (upcoming && typeof data.upcomingHtml === 'string') {
+            upcoming.innerHTML = data.upcomingHtml;
+            upcoming._cralCarouselBound = false;
+            window.setTimeout(function () {
+                bindUpcomingCarousel(root);
+            }, 0);
         }
 
         var jsonNode = root.querySelector('[data-cal-events-json]');
         if (jsonNode) {
             jsonNode.textContent = JSON.stringify({
                 byDay: data.eventsByDay || {},
-                flat: data.eventsFlat || []
+                flat: data.eventsFlat || [],
+                focusDay: data.focusDay || 0
             });
         }
 
         root._cralEventsMap = indexEvents(data.eventsFlat || []);
-        clearActiveDay(root);
-    }
-
-    function clearActiveDay(root) {
-        root.querySelectorAll('.cral-cal__cell.is-active-day').forEach(function (el) {
-            el.classList.remove('is-active-day');
-        });
-    }
-
-    function setActiveDay(root, day) {
-        clearActiveDay(root);
-        var cell = root.querySelector('.cral-cal__cell[data-cal-day="' + day + '"]');
-        if (cell) {
-            cell.classList.add('is-active-day');
-        }
     }
 
     function renderDayEventItem(ev) {
@@ -162,7 +255,7 @@
             '</div>' +
             '<div class="cral-cal-day-item__footer">' +
                 '<a href="' + escapeHtml(ev.url || '#') + '" class="cral-cal-day-item__cta">' +
-                    escapeHtml(i18n.goEvent || 'Vai all\'evento') +
+                    escapeHtml(i18n.goEvent || 'Scopri di più') +
                     '<span class="cral-cal-day-item__cta-arrow" aria-hidden="true">&#8594;</span>' +
                 '</a>' +
             '</div>' +
@@ -182,13 +275,11 @@
 
         var titleEl = modal.querySelector('[data-cal-modal-day-title]');
         var listEl = modal.querySelector('[data-cal-modal-day-list]');
-
-        var dayLabel = events[0].data_estesa || ((i18n.eventiGiorno || 'Eventi del giorno') + ' ' + day);
+        var dayLabel = events[0].data_estesa || ((i18n.eventiGiorno || 'Eventi del') + ' ' + day);
 
         if (titleEl) {
             titleEl.textContent = dayLabel;
         }
-
         if (listEl) {
             listEl.innerHTML = events.map(renderDayEventItem).join('');
         }
@@ -210,7 +301,6 @@
         }
         modal.hidden = true;
         document.body.classList.remove('cral-cal-modal-open');
-        clearActiveDay(root);
     }
 
     function changeMonth(root, delta) {
@@ -240,11 +330,89 @@
             });
     }
 
-    function handleOpenDay(root, day) {
+    function handleSelectDay(root, day) {
         if (!day) {
             return;
         }
-        openDayModal(root, day);
+        updateDayPanel(root, parseInt(day, 10));
+
+        // Su mobile stretto apri anche il modal per comodità.
+        if (window.matchMedia && window.matchMedia('(max-width: 640px)').matches) {
+            openDayModal(root, day);
+        }
+    }
+
+    function updateCarouselNav(root, trackSel, prevSel, nextSel) {
+        var track = root.querySelector(trackSel);
+        var prev = root.querySelector(prevSel);
+        var next = root.querySelector(nextSel);
+        if (!track || !prev || !next) {
+            return;
+        }
+        var maxScroll = Math.max(0, track.scrollWidth - track.clientWidth - 2);
+        prev.disabled = track.scrollLeft <= 2;
+        next.disabled = track.scrollLeft >= maxScroll;
+    }
+
+    function scrollCarousel(root, trackSel, dir, gapFallback, updateFn) {
+        var track = root.querySelector(trackSel);
+        if (!track) {
+            return;
+        }
+        var card = track.querySelector('.cral-cal-product');
+        var styles = window.getComputedStyle(track);
+        var gap = parseFloat(styles.columnGap || styles.gap) || gapFallback;
+        var step = card ? (card.getBoundingClientRect().width + gap) : Math.max(200, track.clientWidth * 0.85);
+        var visible = Math.max(1, Math.floor((track.clientWidth + gap) / step));
+        track.scrollBy({ left: dir * step * visible, behavior: 'smooth' });
+        window.setTimeout(updateFn, 320);
+    }
+
+    function updateUpcomingNav(root) {
+        updateCarouselNav(root, '[data-cal-upcoming]', '[data-cal-up-prev]', '[data-cal-up-next]');
+    }
+
+    function updatePastNav(root) {
+        updateCarouselNav(root, '[data-cal-past]', '[data-cal-past-prev]', '[data-cal-past-next]');
+    }
+
+    function scrollUpcoming(root, dir) {
+        scrollCarousel(root, '[data-cal-upcoming]', dir, 18, function () {
+            updateUpcomingNav(root);
+        });
+    }
+
+    function scrollPast(root, dir) {
+        scrollCarousel(root, '[data-cal-past]', dir, 10, function () {
+            updatePastNav(root);
+        });
+    }
+
+    function bindTrackCarousel(root, trackSel, updateFn) {
+        var track = root.querySelector(trackSel);
+        if (!track) {
+            return;
+        }
+        if (track._cralCarouselBound) {
+            updateFn();
+            return;
+        }
+        track._cralCarouselBound = true;
+        track.addEventListener('scroll', updateFn, { passive: true });
+        window.addEventListener('resize', updateFn);
+        updateFn();
+    }
+
+    function bindUpcomingCarousel(root) {
+        bindTrackCarousel(root, '[data-cal-upcoming]', function () {
+            updateUpcomingNav(root);
+        });
+    }
+
+    function bindPastCarousel(root) {
+        bindTrackCarousel(root, '[data-cal-past]', function () {
+            updatePastNav(root);
+        });
     }
 
     function bindInteractive(root) {
@@ -255,30 +423,25 @@
 
         var initial = parseEventsJson(root);
         root._cralEventsMap = indexEvents(initial.flat || []);
+        bindUpcomingCarousel(root);
+        bindPastCarousel(root);
 
         root.addEventListener('click', function (e) {
-            var openDayBtn = e.target.closest('[data-cal-open-day]');
-            if (openDayBtn) {
-                e.preventDefault();
-                handleOpenDay(root, openDayBtn.getAttribute('data-cal-open-day'));
-                return;
-            }
-
             var card = e.target.closest('.cral-cal__event-card');
             if (card) {
                 e.preventDefault();
                 e.stopPropagation();
-                var dayCell = card.closest('.cral-cal__cell--day');
-                if (dayCell) {
-                    handleOpenDay(root, dayCell.getAttribute('data-cal-day'));
+                var dayFromCard = card.closest('.cral-cal__cell--day');
+                if (dayFromCard) {
+                    handleSelectDay(root, dayFromCard.getAttribute('data-cal-day'));
                 }
                 return;
             }
 
             var dayCell = e.target.closest('.cral-cal__cell--day.has-events');
-            if (dayCell && !e.target.closest('.cral-cal__event-card')) {
+            if (dayCell) {
                 e.preventDefault();
-                handleOpenDay(root, dayCell.getAttribute('data-cal-day'));
+                handleSelectDay(root, dayCell.getAttribute('data-cal-day'));
                 return;
             }
 
@@ -297,6 +460,34 @@
             var close = e.target.closest('[data-cal-modal-close]');
             if (close) {
                 closeModal(root);
+                return;
+            }
+
+            var upPrev = e.target.closest('[data-cal-up-prev]');
+            if (upPrev) {
+                e.preventDefault();
+                scrollUpcoming(root, -1);
+                return;
+            }
+
+            var upNext = e.target.closest('[data-cal-up-next]');
+            if (upNext) {
+                e.preventDefault();
+                scrollUpcoming(root, 1);
+                return;
+            }
+
+            var pastPrev = e.target.closest('[data-cal-past-prev]');
+            if (pastPrev) {
+                e.preventDefault();
+                scrollPast(root, -1);
+                return;
+            }
+
+            var pastNext = e.target.closest('[data-cal-past-next]');
+            if (pastNext) {
+                e.preventDefault();
+                scrollPast(root, 1);
             }
         });
 
@@ -311,7 +502,7 @@
                 e.preventDefault();
                 var cell = card.closest('.cral-cal__cell--day');
                 if (cell) {
-                    handleOpenDay(root, cell.getAttribute('data-cal-day'));
+                    handleSelectDay(root, cell.getAttribute('data-cal-day'));
                 }
                 return;
             }
@@ -319,7 +510,7 @@
             var dayCell = e.target.closest('.cral-cal__cell--day.has-events');
             if (dayCell && (e.key === 'Enter' || e.key === ' ')) {
                 e.preventDefault();
-                handleOpenDay(root, dayCell.getAttribute('data-cal-day'));
+                handleSelectDay(root, dayCell.getAttribute('data-cal-day'));
             }
         });
     }

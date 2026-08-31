@@ -62,6 +62,7 @@ require_once __DIR__ . '/includes/class-elementor-dynamic.php';
 require_once __DIR__ . '/includes/class-evento-scheda.php';
 require_once __DIR__ . '/includes/class-calendario-eventi.php';
 require_once __DIR__ . '/includes/class-calendario-admin.php';
+require_once __DIR__ . '/includes/class-footer-custom.php';
 
 // Inizializza tutto dentro plugins_loaded.
 add_action( 'plugins_loaded', function() {
@@ -124,6 +125,10 @@ add_action( 'plugins_loaded', function() {
 
     $calendario_admin = new \GEvent\Calendario_Admin();
     $calendario_admin->init_admin();
+
+    // Footer custom [footer-custom].
+    $footer_custom = new \GEvent\Footer_Custom();
+    $footer_custom->init();
 
 } );
 

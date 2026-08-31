@@ -26,9 +26,21 @@ class CPT_Evento {
         add_action( 'carbon_fields_post_meta_container_saved', array( $this, 'normalize_iscrizioni_datetimes' ), 15, 2 );
         add_action( 'save_post_evento', array( $this, 'normalize_prices' ), 10, 3 );
         add_action( 'init', array( $this, 'maybe_migrate_iscrizioni_datetimes' ), 20 );
+        add_action( 'init', array( $this, 'maybe_shift_event_dates_sept_oct' ), 25 );
+        add_action( 'init', array( $this, 'maybe_seed_categoria_colori' ), 30 );
+        add_action( 'init', array( $this, 'maybe_seed_past_events_demo' ), 35 );
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_event_datetime_assets' ) );
+        add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_categoria_color_assets' ) );
         add_action( 'admin_footer', array( $this, 'toggle_companion_fields_script' ) );
         add_action( 'admin_footer', array( $this, 'evento_publish_validation_script' ) );
+
+        // Colore categoria evento.
+        add_action( 'categoria_evento_add_form_fields', array( $this, 'categoria_colore_add_field' ) );
+        add_action( 'categoria_evento_edit_form_fields', array( $this, 'categoria_colore_edit_field' ), 10, 2 );
+        add_action( 'created_categoria_evento', array( $this, 'save_categoria_colore' ) );
+        add_action( 'edited_categoria_evento', array( $this, 'save_categoria_colore' ) );
+        add_filter( 'manage_edit-categoria_evento_columns', array( $this, 'categoria_colore_column' ) );
+        add_filter( 'manage_categoria_evento_custom_column', array( $this, 'categoria_colore_column_content' ), 10, 3 );
 
         // Lista admin personalizzata.
         add_filter( 'manage_evento_posts_columns', array( $this, 'set_columns' ) );
@@ -100,6 +112,200 @@ class CPT_Evento {
         );
 
         register_taxonomy( 'categoria_evento', array( 'evento' ), $args );
+    }
+
+    /**
+     * Palette default per categorie note.
+     *
+     * @return array<string, string>
+     */
+    public static function default_categoria_palette() {
+        return array(
+            'cultura-arte'        => '#7c3aed',
+            'cultura-&-arte'      => '#7c3aed',
+            'enogastronomia'      => '#d97706',
+            'sport-benessere'     => '#16a34a',
+            'sport-&-benessere'   => '#16a34a',
+            'teatro-musica'       => '#db2777',
+            'teatro-&-musica'     => '#db2777',
+            'viaggi-gite'         => '#0891b2',
+            'viaggi-&-gite'       => '#0891b2',
+        );
+    }
+
+    /**
+     * Colore categoria (term meta o default).
+     *
+     * @param int|\WP_Term $term Term ID o oggetto.
+     * @return string Hex.
+     */
+    public static function get_categoria_colore( $term ) {
+        if ( is_numeric( $term ) ) {
+            $term = get_term( (int) $term, 'categoria_evento' );
+        }
+        if ( ! $term || is_wp_error( $term ) ) {
+            return '#a7c957';
+        }
+
+        $saved = (string) get_term_meta( $term->term_id, '_cral_categoria_colore', true );
+        if ( $saved && preg_match( '/^#[0-9A-Fa-f]{6}$/', $saved ) ) {
+            return strtolower( $saved );
+        }
+
+        $palette = self::default_categoria_palette();
+        $slug    = sanitize_title( $term->slug );
+        $name    = sanitize_title( $term->name );
+
+        if ( isset( $palette[ $slug ] ) ) {
+            return $palette[ $slug ];
+        }
+        if ( isset( $palette[ $name ] ) ) {
+            return $palette[ $name ];
+        }
+
+        // Fallback deterministico da slug.
+        $hash   = md5( $slug );
+        $colors = array( '#e85d5d', '#f0b429', '#16a34a', '#0891b2', '#7c3aed', '#db2777', '#ea580c', '#0d9488' );
+        $idx    = hexdec( substr( $hash, 0, 2 ) ) % count( $colors );
+
+        return $colors[ $idx ];
+    }
+
+    /**
+     * Colore testo (nero/bianco) a contrasto sul background.
+     *
+     * @param string $hex Colore hex.
+     * @return string
+     */
+    public static function contrast_text_color( $hex ) {
+        $hex = ltrim( $hex, '#' );
+        if ( strlen( $hex ) !== 6 ) {
+            return '#111827';
+        }
+        $r = hexdec( substr( $hex, 0, 2 ) );
+        $g = hexdec( substr( $hex, 2, 2 ) );
+        $b = hexdec( substr( $hex, 4, 2 ) );
+        $y = ( ( $r * 299 ) + ( $g * 587 ) + ( $b * 114 ) ) / 1000;
+
+        return $y >= 150 ? '#111827' : '#ffffff';
+    }
+
+    /**
+     * Seed colori sulle categorie esistenti (una tantum).
+     */
+    public function maybe_seed_categoria_colori() {
+        if ( get_option( 'g_event_categoria_colori_seeded' ) ) {
+            return;
+        }
+
+        $terms = get_terms(
+            array(
+                'taxonomy'   => 'categoria_evento',
+                'hide_empty' => false,
+            )
+        );
+
+        if ( ! is_wp_error( $terms ) ) {
+            foreach ( $terms as $term ) {
+                $existing = get_term_meta( $term->term_id, '_cral_categoria_colore', true );
+                if ( ! $existing ) {
+                    update_term_meta( $term->term_id, '_cral_categoria_colore', self::get_categoria_colore( $term ) );
+                }
+            }
+        }
+
+        update_option( 'g_event_categoria_colori_seeded', '1', false );
+    }
+
+    /**
+     * Campo colore — nuova categoria.
+     */
+    public function categoria_colore_add_field() {
+        ?>
+        <div class="form-field term-colore-wrap">
+            <label for="cral_categoria_colore"><?php esc_html_e( 'Colore categoria', 'g-event' ); ?></label>
+            <input type="text" name="cral_categoria_colore" id="cral_categoria_colore" value="#a7c957" class="cral-categoria-color-field" data-default-color="#a7c957" />
+            <p class="description"><?php esc_html_e( 'Usato nelle schede eventi e nel calendario.', 'g-event' ); ?></p>
+        </div>
+        <?php
+    }
+
+    /**
+     * Campo colore — modifica categoria.
+     *
+     * @param \WP_Term $term Termine.
+     */
+    public function categoria_colore_edit_field( $term ) {
+        $color = self::get_categoria_colore( $term );
+        ?>
+        <tr class="form-field term-colore-wrap">
+            <th scope="row"><label for="cral_categoria_colore"><?php esc_html_e( 'Colore categoria', 'g-event' ); ?></label></th>
+            <td>
+                <input type="text" name="cral_categoria_colore" id="cral_categoria_colore" value="<?php echo esc_attr( $color ); ?>" class="cral-categoria-color-field" data-default-color="<?php echo esc_attr( $color ); ?>" />
+                <p class="description"><?php esc_html_e( 'Usato nelle schede eventi e nel calendario.', 'g-event' ); ?></p>
+            </td>
+        </tr>
+        <?php
+    }
+
+    /**
+     * Salva colore categoria.
+     *
+     * @param int $term_id ID termine.
+     */
+    public function save_categoria_colore( $term_id ) {
+        if ( ! isset( $_POST['cral_categoria_colore'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+            return;
+        }
+        $color = sanitize_hex_color( wp_unslash( $_POST['cral_categoria_colore'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        if ( $color ) {
+            update_term_meta( $term_id, '_cral_categoria_colore', strtolower( $color ) );
+        }
+    }
+
+    /**
+     * Colonna colore in lista categorie.
+     *
+     * @param array $columns Colonne.
+     * @return array
+     */
+    public function categoria_colore_column( $columns ) {
+        $columns['cral_colore'] = __( 'Colore', 'g-event' );
+        return $columns;
+    }
+
+    /**
+     * Contenuto colonna colore.
+     *
+     * @param string $content Contenuto.
+     * @param string $column  Colonna.
+     * @param int    $term_id ID.
+     * @return string
+     */
+    public function categoria_colore_column_content( $content, $column, $term_id ) {
+        if ( 'cral_colore' !== $column ) {
+            return $content;
+        }
+        $color = self::get_categoria_colore( $term_id );
+        return '<span style="display:inline-block;width:22px;height:22px;border-radius:6px;background:' . esc_attr( $color ) . ';border:1px solid rgba(0,0,0,.15);vertical-align:middle;" title="' . esc_attr( $color ) . '"></span>';
+    }
+
+    /**
+     * Color picker WP admin per categorie.
+     *
+     * @param string $hook Hook pagina.
+     */
+    public function enqueue_categoria_color_assets( $hook ) {
+        $screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+        if ( ! $screen || 'categoria_evento' !== $screen->taxonomy ) {
+            return;
+        }
+        wp_enqueue_style( 'wp-color-picker' );
+        wp_enqueue_script( 'wp-color-picker' );
+        wp_add_inline_script(
+            'wp-color-picker',
+            'jQuery(function($){$(".cral-categoria-color-field").wpColorPicker();});'
+        );
     }
 
     /**
@@ -348,6 +554,239 @@ class CPT_Evento {
         );
 
         update_option( 'g_event_iscrizioni_datetime_migrated', '1', false );
+    }
+
+    /**
+     * Migrazione una tantum: sposta tutte le date evento a settembre–ottobre 2026.
+     */
+    public function maybe_shift_event_dates_sept_oct() {
+        if ( get_option( 'g_event_dates_sept_oct_2026' ) ) {
+            return;
+        }
+
+        $posts = get_posts(
+            array(
+                'post_type'      => 'evento',
+                'post_status'    => array( 'publish', 'draft', 'pending', 'future', 'private' ),
+                'posts_per_page' => -1,
+                'orderby'        => 'meta_value',
+                'meta_key'       => '_cral_evento_data',
+                'order'          => 'ASC',
+            )
+        );
+
+        if ( empty( $posts ) ) {
+            $posts = get_posts(
+                array(
+                    'post_type'      => 'evento',
+                    'post_status'    => array( 'publish', 'draft', 'pending', 'future', 'private' ),
+                    'posts_per_page' => -1,
+                    'orderby'        => 'date',
+                    'order'          => 'ASC',
+                )
+            );
+        }
+
+        if ( empty( $posts ) ) {
+            update_option( 'g_event_dates_sept_oct_2026', '1', false );
+            return;
+        }
+
+        $window_start = strtotime( '2026-09-05 00:00:00' );
+        $window_end   = strtotime( '2026-10-25 23:59:59' );
+        $span         = max( 1, $window_end - $window_start );
+        $count        = count( $posts );
+
+        foreach ( $posts as $index => $post ) {
+            $old_raw = (string) get_post_meta( $post->ID, '_cral_evento_data', true );
+            $old_ts  = $old_raw ? strtotime( $old_raw ) : false;
+            $time    = ( $old_ts && false !== $old_ts ) ? date( 'H:i:s', $old_ts ) : '18:00:00';
+
+            if ( $count === 1 ) {
+                $event_ts = $window_start + (int) ( $span / 2 );
+            } else {
+                $event_ts = $window_start + (int) round( ( $index / ( $count - 1 ) ) * $span );
+            }
+
+            // Preferisci weekend (sab/dom) se vicino.
+            $dow = (int) date( 'w', $event_ts );
+            if ( $dow === 1 ) {
+                $event_ts = strtotime( '-1 day', $event_ts );
+            } elseif ( $dow === 2 ) {
+                $event_ts = strtotime( '+4 days', $event_ts );
+            } elseif ( $dow === 3 ) {
+                $event_ts = strtotime( '+3 days', $event_ts );
+            } elseif ( $dow === 4 ) {
+                $event_ts = strtotime( '+2 days', $event_ts );
+            } elseif ( $dow === 5 ) {
+                $event_ts = strtotime( '+1 day', $event_ts );
+            }
+
+            if ( $event_ts < $window_start ) {
+                $event_ts = $window_start;
+            }
+            if ( $event_ts > $window_end ) {
+                $event_ts = $window_end;
+            }
+
+            $event_dt = date( 'Y-m-d', $event_ts ) . ' ' . $time;
+            update_post_meta( $post->ID, '_cral_evento_data', $event_dt );
+
+            $apertura_ts = strtotime( '-14 days', strtotime( $event_dt ) );
+            $scadenza_ts = strtotime( '-1 day', strtotime( date( 'Y-m-d', strtotime( $event_dt ) ) . ' 23:59:00' ) );
+
+            // Apertura non nel passato rispetto a oggi (31 ago 2026): al massimo da oggi.
+            $today_start = strtotime( '2026-08-31 00:00:00' );
+            if ( $apertura_ts < $today_start ) {
+                $apertura_ts = $today_start;
+            }
+            if ( $apertura_ts >= strtotime( $event_dt ) ) {
+                $apertura_ts = strtotime( '-3 days', strtotime( $event_dt ) );
+            }
+            if ( $scadenza_ts <= $apertura_ts ) {
+                $scadenza_ts = strtotime( '-1 day', strtotime( date( 'Y-m-d', strtotime( $event_dt ) ) . ' 23:59:00' ) );
+            }
+
+            update_post_meta( $post->ID, '_cral_evento_data_apertura_iscrizioni', date( 'Y-m-d', $apertura_ts ) . ' 00:00:00' );
+            update_post_meta( $post->ID, '_cral_evento_data_iscrizione', date( 'Y-m-d', $scadenza_ts ) . ' 23:59:00' );
+
+            // Allinea post_date WP se programmato nel futuro.
+            wp_update_post(
+                array(
+                    'ID'            => $post->ID,
+                    'post_status'   => 'publish',
+                    'post_date'     => current_time( 'mysql' ),
+                    'post_date_gmt' => get_gmt_from_date( current_time( 'mysql' ) ),
+                )
+            );
+        }
+
+        update_option( 'g_event_dates_sept_oct_2026', '1', false );
+    }
+
+    /**
+     * Una tantum: duplica 8 eventi e li sposta nel passato (demo).
+     */
+    public function maybe_seed_past_events_demo() {
+        if ( get_option( 'g_event_past_events_demo_2026' ) ) {
+            return;
+        }
+
+        $sources = get_posts(
+            array(
+                'post_type'      => 'evento',
+                'post_status'    => 'publish',
+                'posts_per_page' => 8,
+                'orderby'        => 'meta_value',
+                'meta_key'       => '_cral_evento_data',
+                'order'          => 'ASC',
+            )
+        );
+
+        if ( count( $sources ) < 1 ) {
+            update_option( 'g_event_past_events_demo_2026', '1', false );
+            return;
+        }
+
+        // Date passate: da ieri all'indietro (ago 2026).
+        $past_dates = array(
+            '2026-08-30 19:00:00',
+            '2026-08-23 18:30:00',
+            '2026-08-16 17:00:00',
+            '2026-08-09 20:00:00',
+            '2026-08-02 11:00:00',
+            '2026-07-26 15:00:00',
+            '2026-07-19 10:00:00',
+            '2026-07-12 16:30:00',
+        );
+
+        $created = 0;
+        foreach ( $sources as $index => $source ) {
+            if ( $created >= 8 ) {
+                break;
+            }
+
+            $event_dt = $past_dates[ $index % count( $past_dates ) ];
+            $new_id   = $this->duplicate_evento_post( $source->ID, $event_dt );
+            if ( $new_id ) {
+                $created++;
+            }
+        }
+
+        update_option( 'g_event_past_events_demo_2026', '1', false );
+        update_option( 'g_event_past_events_demo_count', (string) $created, false );
+    }
+
+    /**
+     * Duplica un evento con nuova data (passata) e stato concluso.
+     *
+     * @param int    $source_id ID originale.
+     * @param string $event_dt  Datetime Y-m-d H:i:s.
+     * @return int ID nuovo post o 0.
+     */
+    protected function duplicate_evento_post( $source_id, $event_dt ) {
+        $source = get_post( $source_id );
+        if ( ! $source || 'evento' !== $source->post_type ) {
+            return 0;
+        }
+
+        $new_id = wp_insert_post(
+            array(
+                'post_type'    => 'evento',
+                'post_status'  => 'publish',
+                'post_title'   => $source->post_title,
+                'post_content' => $source->post_content,
+                'post_excerpt' => $source->post_excerpt,
+                'post_author'  => $source->post_author,
+                'menu_order'   => $source->menu_order,
+            ),
+            true
+        );
+
+        if ( is_wp_error( $new_id ) || ! $new_id ) {
+            return 0;
+        }
+
+        // Meta.
+        $all_meta = get_post_meta( $source_id );
+        foreach ( $all_meta as $key => $values ) {
+            if ( '_edit_lock' === $key || '_edit_last' === $key ) {
+                continue;
+            }
+            foreach ( $values as $value ) {
+                add_post_meta( $new_id, $key, maybe_unserialize( $value ) );
+            }
+        }
+
+        $ts = strtotime( $event_dt );
+        if ( ! $ts ) {
+            $ts = strtotime( '2026-08-20 18:00:00' );
+        }
+
+        $apertura = date( 'Y-m-d', strtotime( '-14 days', $ts ) ) . ' 00:00:00';
+        $scadenza = date( 'Y-m-d', strtotime( '-1 day', $ts ) ) . ' 23:59:00';
+
+        update_post_meta( $new_id, '_cral_evento_data', date( 'Y-m-d H:i:s', $ts ) );
+        update_post_meta( $new_id, '_cral_evento_data_apertura_iscrizioni', $apertura );
+        update_post_meta( $new_id, '_cral_evento_data_iscrizione', $scadenza );
+        update_post_meta( $new_id, '_cral_evento_stato', 'concluso' );
+
+        // Tassonomie.
+        $taxonomies = get_object_taxonomies( 'evento' );
+        foreach ( $taxonomies as $tax ) {
+            $terms = wp_get_object_terms( $source_id, $tax, array( 'fields' => 'ids' ) );
+            if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+                wp_set_object_terms( $new_id, $terms, $tax );
+            }
+        }
+
+        // Thumbnail.
+        $thumb_id = get_post_thumbnail_id( $source_id );
+        if ( $thumb_id ) {
+            set_post_thumbnail( $new_id, $thumb_id );
+        }
+
+        return (int) $new_id;
     }
 
     /**

@@ -51,14 +51,20 @@ class Calendario_Eventi {
         self::$assets_enqueued = true;
 
         $base = plugin_dir_url( dirname( __FILE__ ) );
-        $ver  = '1.2.1';
+        $ver  = '1.6.6';
 
-        wp_enqueue_style( 'g-event-frontend', $base . 'assets/css/frontend.css', array(), '1.0.7' );
+        wp_enqueue_style(
+            'g-event-calendario-font',
+            'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap',
+            array(),
+            null
+        );
+        wp_enqueue_style( 'g-event-frontend', $base . 'assets/css/frontend.css', array(), '1.1.9' );
         wp_enqueue_style( 'g-event-scheda', $base . 'assets/css/scheda-evento.css', array(), '1.0.0' );
         wp_enqueue_style(
             'g-event-calendario',
             $base . 'assets/css/calendario-eventi.css',
-            array( 'g-event-frontend', 'g-event-scheda' ),
+            array( 'g-event-calendario-font', 'g-event-frontend', 'g-event-scheda' ),
             $ver
         );
 
@@ -77,17 +83,22 @@ class Calendario_Eventi {
                 'ajaxUrl' => admin_url( 'admin-ajax.php' ),
                 'nonce'   => wp_create_nonce( 'cral_calendario_mese' ),
                 'i18n'    => array(
-                    'prev'       => 'Mese precedente',
-                    'next'       => 'Mese successivo',
-                    'loading'    => 'Caricamento…',
-                    'noEvents'   => 'Nessun evento in questo mese.',
-                    'goEvent'    => 'Vai all\'evento',
-                    'close'      => 'Chiudi',
-                    'prossimo'   => 'Prossimo evento',
-                    'listaMese'  => 'Eventi del mese di',
-                    'oggi'       => 'Oggi',
-                    'eventiGiorno' => 'Eventi del giorno',
+                    'prev'               => 'Mese precedente',
+                    'next'               => 'Mese successivo',
+                    'loading'            => 'Caricamento…',
+                    'noEvents'           => 'Nessun evento in questo mese.',
+                    'goEvent'            => 'Scopri di più',
+                    'close'              => 'Chiudi',
+                    'prossimo'           => 'Prossimo evento',
+                    'listaMese'          => 'Eventi del mese di',
+                    'oggi'               => 'Oggi',
+                    'eventiGiorno'       => 'Eventi del',
+                    'prossimiEventi'     => 'Prossimi eventi',
+                    'eventiPassati'      => 'Eventi passati',
+                    'nessunPassato'      => 'Nessun evento passato.',
                     'nessunEventoGiorno' => 'Nessun evento in questo giorno.',
+                    'nessunProssimo'     => 'Nessun prossimo evento in programma.',
+                    'selezionaGiorno'    => 'Seleziona un giorno con eventi',
                 ),
             )
         );
@@ -122,37 +133,99 @@ class Calendario_Eventi {
 
         $events = $this->get_events_for_month( $year, $month );
         $by_day = $this->group_events_by_day( $events );
-        $uid    = 'cral-cal-' . wp_rand( 1000, 9999 );
+        $focus  = $this->resolve_focus_day( $year, $month, $by_day );
+
+        // Se il mese corrente non ha eventi futuri, apri il mese del prossimo evento.
+        if ( $focus <= 0 && empty( $atts['mese'] ) ) {
+            $next_batch = $this->get_upcoming_events( 1 );
+            if ( ! empty( $next_batch[0]['data_raw'] ) ) {
+                $next_ts = strtotime( $next_batch[0]['data_raw'] );
+                if ( $next_ts ) {
+                    $year   = (int) wp_date( 'Y', $next_ts );
+                    $month  = (int) wp_date( 'n', $next_ts );
+                    $events = $this->get_events_for_month( $year, $month );
+                    $by_day = $this->group_events_by_day( $events );
+                    $focus  = $this->resolve_focus_day( $year, $month, $by_day );
+                }
+            }
+        }
+
+        $upcoming = $this->get_upcoming_events( 12 );
+        $past     = $this->get_past_events( 48, 0 );
+        $uid      = 'cral-cal-' . wp_rand( 1000, 9999 );
 
         ob_start();
         ?>
         <div class="cral-cal" id="<?php echo esc_attr( $uid ); ?>"
              data-year="<?php echo esc_attr( (string) $year ); ?>"
-             data-month="<?php echo esc_attr( (string) $month ); ?>">
+             data-month="<?php echo esc_attr( (string) $month ); ?>"
+             data-focus-day="<?php echo esc_attr( (string) $focus ); ?>">
 
-            <div class="cral-cal__layout">
-                <section class="cral-cal__calendar-panel" aria-label="<?php esc_attr_e( 'Calendario eventi', 'g-event' ); ?>">
-                    <?php echo $this->render_calendar_nav( $year, $month ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                    <div class="cral-cal__grid-wrap" data-cal-grid>
-                        <?php echo $this->render_calendar_grid( $year, $month, $by_day ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <section class="cral-cal__upcoming" aria-label="<?php esc_attr_e( 'Prossimi eventi', 'g-event' ); ?>">
+                <div class="cral-cal__upcoming-head">
+                    <h3 class="cral-cal__upcoming-title"><?php esc_html_e( 'Prossimi eventi', 'g-event' ); ?></h3>
+                    <div class="cral-cal__carousel-nav" aria-label="<?php esc_attr_e( 'Navigazione carosello', 'g-event' ); ?>">
+                        <button type="button" class="cral-cal__carousel-btn" data-cal-up-prev aria-label="<?php esc_attr_e( 'Precedenti', 'g-event' ); ?>">
+                            <span aria-hidden="true">&#8249;</span>
+                        </button>
+                        <button type="button" class="cral-cal__carousel-btn" data-cal-up-next aria-label="<?php esc_attr_e( 'Successivi', 'g-event' ); ?>">
+                            <span aria-hidden="true">&#8250;</span>
+                        </button>
                     </div>
-                </section>
+                </div>
+                <div class="cral-cal__carousel" data-cal-upcoming-carousel>
+                    <div class="cral-cal__product-grid cral-cal__product-grid--carousel" data-cal-upcoming>
+                        <?php echo $this->render_product_grid( $upcoming ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    </div>
+                </div>
+            </section>
 
-                <section class="cral-cal__list-panel" aria-label="<?php esc_attr_e( 'Elenco eventi del mese', 'g-event' ); ?>">
-                    <h3 class="cral-cal__list-title" data-cal-list-title><?php echo $this->render_list_title( $year, $month ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></h3>
-                    <div class="cral-cal__list" data-cal-list>
-                        <?php echo $this->render_events_list( $events ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <section class="cral-cal__calendar-block" aria-label="<?php esc_attr_e( 'Calendario eventi', 'g-event' ); ?>">
+                <h3 class="cral-cal__section-title"><?php esc_html_e( 'Calendario eventi', 'g-event' ); ?></h3>
+                <div class="cral-cal__layout">
+                    <section class="cral-cal__calendar-panel">
+                        <?php echo $this->render_calendar_nav( $year, $month ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <div class="cral-cal__grid-wrap" data-cal-grid>
+                            <?php echo $this->render_calendar_grid( $year, $month, $by_day, $focus ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        </div>
+                    </section>
+
+                    <section class="cral-cal__list-panel cral-cal__day-panel" aria-label="<?php esc_attr_e( 'Eventi del giorno', 'g-event' ); ?>">
+                        <h3 class="cral-cal__list-title" data-cal-day-title><?php echo $this->render_day_panel_title( $year, $month, $focus ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></h3>
+                        <div class="cral-cal__list" data-cal-day-list>
+                            <?php echo $this->render_day_events_list( $focus > 0 ? ( $by_day[ $focus ] ?? array() ) : array() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        </div>
+                    </section>
+                </div>
+            </section>
+
+            <section class="cral-cal__past" aria-label="<?php esc_attr_e( 'Eventi passati', 'g-event' ); ?>">
+                <div class="cral-cal__upcoming-head cral-cal__past-head">
+                    <h3 class="cral-cal__section-title cral-cal__past-title"><?php esc_html_e( 'Eventi passati', 'g-event' ); ?></h3>
+                    <div class="cral-cal__carousel-nav" aria-label="<?php esc_attr_e( 'Navigazione eventi passati', 'g-event' ); ?>">
+                        <button type="button" class="cral-cal__carousel-btn" data-cal-past-prev aria-label="<?php esc_attr_e( 'Precedenti', 'g-event' ); ?>">
+                            <span aria-hidden="true">&#8249;</span>
+                        </button>
+                        <button type="button" class="cral-cal__carousel-btn" data-cal-past-next aria-label="<?php esc_attr_e( 'Successivi', 'g-event' ); ?>">
+                            <span aria-hidden="true">&#8250;</span>
+                        </button>
                     </div>
-                </section>
-            </div>
+                </div>
+                <div class="cral-cal__carousel" data-cal-past-carousel>
+                    <div class="cral-cal__past-grid cral-cal__past-grid--carousel" data-cal-past>
+                        <?php echo $this->render_past_product_grid( $past['events'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    </div>
+                </div>
+            </section>
 
             <?php echo $this->render_modal(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 
             <script type="application/json" class="cral-cal__events-json" data-cal-events-json><?php
                 echo wp_json_encode(
                     array(
-                        'byDay' => $by_day,
-                        'flat'  => array_values( $events ),
+                        'byDay'    => $by_day,
+                        'flat'     => array_values( $events ),
+                        'focusDay' => $focus,
                     ),
                     JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP
                 );
@@ -175,20 +248,24 @@ class Calendario_Eventi {
             wp_send_json_error( array( 'message' => 'Mese non valido.' ), 400 );
         }
 
-        $events = $this->get_events_for_month( $year, $month );
-        $by_day = $this->group_events_by_day( $events );
+        $events   = $this->get_events_for_month( $year, $month );
+        $by_day   = $this->group_events_by_day( $events );
+        $focus    = $this->resolve_focus_day( $year, $month, $by_day );
+        $upcoming = $this->get_upcoming_events( 12 );
 
         wp_send_json_success(
             array(
-                'year'          => $year,
-                'month'         => $month,
-                'monthLabel'    => $this->format_month_label( $year, $month ),
-                'navHtml'       => $this->render_calendar_nav( $year, $month ),
-                'calendarHtml'  => $this->render_calendar_grid( $year, $month, $by_day ),
-                'listHtml'      => $this->render_events_list( $events ),
-                'listTitleHtml' => $this->render_list_title( $year, $month ),
-                'eventsByDay'   => $by_day,
-                'eventsFlat'    => array_values( $events ),
+                'year'             => $year,
+                'month'            => $month,
+                'monthLabel'       => $this->format_month_label( $year, $month ),
+                'navHtml'          => $this->render_calendar_nav( $year, $month ),
+                'calendarHtml'     => $this->render_calendar_grid( $year, $month, $by_day, $focus ),
+                'dayTitleHtml'     => $this->render_day_panel_title( $year, $month, $focus ),
+                'dayListHtml'      => $this->render_day_events_list( $focus > 0 ? ( $by_day[ $focus ] ?? array() ) : array() ),
+                'upcomingHtml'     => $this->render_product_grid( $upcoming ),
+                'focusDay'         => $focus,
+                'eventsByDay'      => $by_day,
+                'eventsFlat'       => array_values( $events ),
             )
         );
     }
@@ -251,32 +328,137 @@ class Calendario_Eventi {
 
         $thumb_id = get_post_thumbnail_id( $post_id );
         $thumb    = '';
+        $thumb_md = '';
         if ( $thumb_id ) {
-            $thumb = (string) wp_get_attachment_image_url( $thumb_id, 'thumbnail' );
+            $thumb    = (string) wp_get_attachment_image_url( $thumb_id, 'thumbnail' );
+            $thumb_md = (string) wp_get_attachment_image_url( $thumb_id, 'medium_large' );
+            if ( ! $thumb_md ) {
+                $thumb_md = (string) wp_get_attachment_image_url( $thumb_id, 'medium' );
+            }
+            if ( ! $thumb_md ) {
+                $thumb_md = $thumb;
+            }
         }
 
-        $terms = get_the_terms( $post_id, 'categoria_evento' );
-        $cat   = ( $terms && ! is_wp_error( $terms ) ) ? $terms[0]->name : '';
+        $terms     = get_the_terms( $post_id, 'categoria_evento' );
+        $cat       = '';
+        $cat_color = '#a7c957';
+        $cat_text  = '#111827';
+        if ( $terms && ! is_wp_error( $terms ) ) {
+            $cat       = $terms[0]->name;
+            $cat_color = CPT_Evento::get_categoria_colore( $terms[0] );
+            $cat_text  = CPT_Evento::contrast_text_color( $cat_color );
+        }
         $socio = $this->get_socio_stato_evento( $post_id );
+
+        $posti_totali  = (int) get_post_meta( $post_id, '_cral_evento_posti_totali', true );
+        $posti_residui = (int) get_post_meta( $post_id, '_cral_evento_posti_residui', true );
+        $partecipanti  = max( 0, $posti_totali - $posti_residui );
+        $stato_info    = $this->get_evento_stato_info( $post_id );
 
         return array(
             'id'                => $post_id,
             'title'             => get_the_title( $post_id ),
             'url'               => get_permalink( $post_id ),
-            'excerpt'           => wp_trim_words( get_the_excerpt( $post_id ), 20, '…' ),
+            'excerpt'           => wp_trim_words( get_the_excerpt( $post_id ), 18, '…' ),
             'data_raw'          => $data_raw,
             'data'              => $ts ? wp_date( 'd/m/Y', $ts ) : '',
             'data_estesa'       => $this->dynamic()->evento_data_estesa( array( 'id' => $post_id ) ),
+            'data_card'         => $ts ? $this->format_product_date( $ts ) : '',
             'ora'               => $ts ? wp_date( 'H:i', $ts ) : '',
             'luogo'             => (string) get_post_meta( $post_id, '_cral_evento_luogo', true ),
             'categoria'         => $cat,
+            'categoria_colore'  => $cat_color,
+            'categoria_testo'   => $cat_text,
             'day'               => $day,
             'thumb'             => $thumb,
+            'thumb_md'          => $thumb_md,
             'thumb_html'        => $this->render_thumb_html( $post_id, 'cral-cal-thumb' ),
             'badge_html'        => $this->dynamic()->evento_badge( array( 'id' => $post_id ) ),
+            'stato_label'       => $stato_info['label'],
+            'stato_mod'         => $stato_info['mod'],
+            'posti_totali'      => $posti_totali,
+            'posti_residui'     => $posti_residui,
+            'partecipanti'      => $partecipanti,
             'socio_stato'       => $socio['code'],
             'socio_stato_label' => $socio['label'],
         );
+    }
+
+    /**
+     * Data scheda prodotto: "SETTEMBRE 5 · ore 20:00".
+     *
+     * @param int $ts Timestamp.
+     * @return string
+     */
+    protected function format_product_date( $ts ) {
+        $mesi = array(
+            1  => 'GENNAIO',
+            2  => 'FEBBRAIO',
+            3  => 'MARZO',
+            4  => 'APRILE',
+            5  => 'MAGGIO',
+            6  => 'GIUGNO',
+            7  => 'LUGLIO',
+            8  => 'AGOSTO',
+            9  => 'SETTEMBRE',
+            10 => 'OTTOBRE',
+            11 => 'NOVEMBRE',
+            12 => 'DICEMBRE',
+        );
+
+        $m = (int) wp_date( 'n', $ts );
+        $d = (int) wp_date( 'j', $ts );
+        $h = wp_date( 'H:i', $ts );
+
+        return sprintf( '%s %d · ore %s', $mesi[ $m ] ?? '', $d, $h );
+    }
+
+    /**
+     * Stato evento sintetico (label + modificatore CSS).
+     *
+     * @param int $event_id ID evento.
+     * @return array{label: string, mod: string}
+     */
+    protected function get_evento_stato_info( $event_id ) {
+        $stato         = (string) get_post_meta( $event_id, '_cral_evento_stato', true );
+        $data_raw      = (string) get_post_meta( $event_id, '_cral_evento_data', true );
+        $data_iscr_raw = (string) get_post_meta( $event_id, '_cral_evento_data_iscrizione', true );
+        $data_ap_raw   = (string) get_post_meta( $event_id, '_cral_evento_data_apertura_iscrizioni', true );
+        $posti_residui = (int) get_post_meta( $event_id, '_cral_evento_posti_residui', true );
+
+        $now         = time();
+        $ts_evento   = $data_raw ? strtotime( $data_raw ) : 0;
+        $ts_scadenza = Evento_Stato::parse_iscrizione_ts( $data_iscr_raw, 'scadenza' );
+        $ts_apertura = Evento_Stato::parse_iscrizione_ts( $data_ap_raw, 'apertura' );
+
+        $is_annullato   = ( 'annullato' === $stato );
+        $is_programmato = Evento_Stato::is_programmato( $event_id );
+        $is_concluso    = ( ! $is_programmato && 'concluso' === $stato ) || ( ! $is_programmato && $ts_evento > 0 && $ts_evento < $now );
+        $is_soldout     = ( ! $is_annullato && ! $is_programmato && ! $is_concluso && $posti_residui <= 0 );
+        $is_chiuse      = ( ! $is_annullato && ! $is_programmato && ! $is_concluso && ! $is_soldout && $ts_scadenza > 0 && $ts_scadenza < $now );
+        $is_non_ancora  = ( ! $is_annullato && ! $is_programmato && ! $is_concluso && ! $is_soldout && ! $is_chiuse && $ts_apertura > 0 && $ts_apertura > $now );
+
+        if ( $is_annullato ) {
+            return array( 'label' => 'Annullato', 'mod' => 'annullato' );
+        }
+        if ( $is_programmato ) {
+            return array( 'label' => 'Programmato', 'mod' => 'programmato' );
+        }
+        if ( $is_concluso ) {
+            return array( 'label' => 'Concluso', 'mod' => 'concluso' );
+        }
+        if ( $is_soldout ) {
+            return array( 'label' => 'Sold out', 'mod' => 'soldout' );
+        }
+        if ( $is_chiuse ) {
+            return array( 'label' => 'Iscrizioni chiuse', 'mod' => 'chiuse' );
+        }
+        if ( $is_non_ancora ) {
+            return array( 'label' => 'Prossimamente', 'mod' => 'presto' );
+        }
+
+        return array( 'label' => 'Iscrizioni aperte', 'mod' => 'aperto' );
     }
 
     /**
@@ -437,6 +619,416 @@ class Calendario_Eventi {
     }
 
     /**
+     * Giorno da mostrare nel pannello: selezionato / oggi / prossimo con eventi.
+     *
+     * @param int                                      $year   Anno.
+     * @param int                                      $month  Mese.
+     * @param array<int, array<int, array<string,mixed>>> $by_day Eventi per giorno.
+     * @return int
+     */
+    protected function resolve_focus_day( $year, $month, $by_day ) {
+        if ( empty( $by_day ) ) {
+            return 0;
+        }
+
+        $days = array_map( 'intval', array_keys( $by_day ) );
+        sort( $days, SORT_NUMERIC );
+
+        $today_y = (int) wp_date( 'Y' );
+        $today_m = (int) wp_date( 'n' );
+        $today_d = (int) wp_date( 'j' );
+
+        if ( $year === $today_y && $month === $today_m ) {
+            if ( ! empty( $by_day[ $today_d ] ) ) {
+                return $today_d;
+            }
+            foreach ( $days as $day ) {
+                if ( $day >= $today_d ) {
+                    return $day;
+                }
+            }
+            return 0;
+        }
+
+        if ( $year > $today_y || ( $year === $today_y && $month > $today_m ) ) {
+            return (int) $days[0];
+        }
+
+        // Mese passato: primo giorno con eventi (solo consultazione).
+        return (int) $days[0];
+    }
+
+    /**
+     * Prossimi eventi da oggi in poi (max N).
+     *
+     * @param int $limit Numero massimo.
+     * @return array<int, array<string, mixed>>
+     */
+    protected function get_upcoming_events( $limit = 4 ) {
+        $limit = max( 1, min( 16, (int) $limit ) );
+        $now   = wp_date( 'Y-m-d H:i:s' );
+
+        $query = new \WP_Query(
+            array(
+                'post_type'      => 'evento',
+                'post_status'    => 'publish',
+                'posts_per_page' => $limit,
+                'meta_key'       => '_cral_evento_data',
+                'orderby'        => 'meta_value',
+                'order'          => 'ASC',
+                'meta_query'     => array(
+                    'relation' => 'AND',
+                    array(
+                        'key'     => '_cral_evento_data',
+                        'value'   => $now,
+                        'compare' => '>=',
+                        'type'    => 'DATETIME',
+                    ),
+                    array(
+                        'key'     => '_cral_evento_stato',
+                        'value'   => array( 'bozza', 'annullato', 'programmato' ),
+                        'compare' => 'NOT IN',
+                    ),
+                ),
+            )
+        );
+
+        $events = array();
+        if ( $query->have_posts() ) {
+            foreach ( $query->posts as $post ) {
+                $events[] = $this->format_event( $post->ID );
+            }
+        }
+        wp_reset_postdata();
+
+        return $events;
+    }
+
+    /**
+     * Eventi passati (da ieri all'indietro) per il carosello.
+     *
+     * @param int $limit  Numero massimo.
+     * @param int $offset Offset.
+     * @return array{events: array<int, array<string, mixed>>, has_more: bool, total: int}
+     */
+    protected function get_past_events( $limit = 48, $offset = 0 ) {
+        $limit  = max( 1, min( 60, (int) $limit ) );
+        $offset = max( 0, (int) $offset );
+        // Prima di oggi 00:00 = da ieri all'indietro.
+        $before = wp_date( 'Y-m-d' ) . ' 00:00:00';
+
+        $query = new \WP_Query(
+            array(
+                'post_type'      => 'evento',
+                'post_status'    => 'publish',
+                'posts_per_page' => $limit,
+                'offset'         => $offset,
+                'meta_key'       => '_cral_evento_data',
+                'orderby'        => 'meta_value',
+                'order'          => 'DESC',
+                'meta_query'     => array(
+                    'relation' => 'AND',
+                    array(
+                        'key'     => '_cral_evento_data',
+                        'value'   => $before,
+                        'compare' => '<',
+                        'type'    => 'DATETIME',
+                    ),
+                    array(
+                        'key'     => '_cral_evento_stato',
+                        'value'   => array( 'bozza', 'annullato', 'programmato' ),
+                        'compare' => 'NOT IN',
+                    ),
+                ),
+            )
+        );
+
+        $events = array();
+        if ( $query->have_posts() ) {
+            foreach ( $query->posts as $post ) {
+                $events[] = $this->format_event( $post->ID );
+            }
+        }
+
+        $total    = (int) $query->found_posts;
+        $has_more = ( $offset + count( $events ) ) < $total;
+        wp_reset_postdata();
+
+        return array(
+            'events'   => $events,
+            'has_more' => $has_more,
+            'total'    => $total,
+        );
+    }
+
+    /**
+     * Titolo pannello giorno.
+     *
+     * @param int $year  Anno.
+     * @param int $month Mese.
+     * @param int $day   Giorno.
+     * @return string
+     */
+    protected function render_day_panel_title( $year, $month, $day ) {
+        if ( $day <= 0 ) {
+            return esc_html__( 'Nessun prossimo giorno con eventi', 'g-event' );
+        }
+
+        $ts = strtotime( sprintf( '%04d-%02d-%02d', $year, $month, $day ) );
+        if ( ! $ts ) {
+            return esc_html__( 'Eventi del giorno', 'g-event' );
+        }
+
+        $giorni = array(
+            1 => 'Lunedì',
+            2 => 'Martedì',
+            3 => 'Mercoledì',
+            4 => 'Giovedì',
+            5 => 'Venerdì',
+            6 => 'Sabato',
+            7 => 'Domenica',
+        );
+        $mesi = array(
+            1  => 'gennaio',
+            2  => 'febbraio',
+            3  => 'marzo',
+            4  => 'aprile',
+            5  => 'maggio',
+            6  => 'giugno',
+            7  => 'luglio',
+            8  => 'agosto',
+            9  => 'settembre',
+            10 => 'ottobre',
+            11 => 'novembre',
+            12 => 'dicembre',
+        );
+
+        $dow  = (int) wp_date( 'N', $ts );
+        $d    = (int) wp_date( 'j', $ts );
+        $m    = (int) wp_date( 'n', $ts );
+        $label = sprintf( '%s %d %s', $giorni[ $dow ] ?? '', $d, $mesi[ $m ] ?? '' );
+
+        $today_y = (int) wp_date( 'Y' );
+        $today_m = (int) wp_date( 'n' );
+        $today_d = (int) wp_date( 'j' );
+        $prefix  = ( $year === $today_y && $month === $today_m && $day === $today_d )
+            ? __( 'Oggi', 'g-event' )
+            : __( 'Eventi del', 'g-event' );
+
+        return sprintf(
+            '%s <span class="cral-cal__list-title-month">%s</span>',
+            esc_html( $prefix ),
+            esc_html( $label )
+        );
+    }
+
+    /**
+     * Lista eventi del giorno (pannello laterale) — link alla scheda.
+     *
+     * @param array<int, array<string, mixed>> $events Eventi del giorno.
+     * @return string
+     */
+    protected function render_day_events_list( $events ) {
+        if ( empty( $events ) ) {
+            return '<p class="cral-cal__empty">' . esc_html__( 'Nessun evento in questo giorno.', 'g-event' ) . '</p>';
+        }
+
+        ob_start();
+        foreach ( $events as $event ) {
+            $img     = $event['thumb_md'] ?: $event['thumb'];
+            $cat_bg  = $event['categoria_colore'] ?? '#a7c957';
+            $cat_fg  = $event['categoria_testo'] ?? '#111827';
+            $mod     = $event['stato_mod'] ?? 'aperto';
+            $accent  = '--cral-cat:' . esc_attr( $cat_bg ) . ';';
+            ?>
+            <article class="cral-cal-list__item cral-cal-list__item--day" data-event-id="<?php echo esc_attr( (string) $event['id'] ); ?>" style="<?php echo esc_attr( $accent ); ?>">
+                <a class="cral-cal-list__btn" href="<?php echo esc_url( $event['url'] ); ?>">
+                    <span class="cral-cal-list__thumb-wrap">
+                        <?php if ( $img ) : ?>
+                        <img src="<?php echo esc_url( $img ); ?>" alt="" class="cral-cal-thumb" loading="lazy" />
+                        <?php else : ?>
+                        <span class="cral-cal-thumb cral-cal-thumb--placeholder" aria-hidden="true">&#127917;</span>
+                        <?php endif; ?>
+                    </span>
+                    <span class="cral-cal-list__body">
+                        <?php if ( ! empty( $event['data_card'] ) || ! empty( $event['ora'] ) ) : ?>
+                        <span class="cral-cal-list__when">
+                            <?php echo esc_html( $event['data_card'] ?: ( $event['ora'] ?? '' ) ); ?>
+                        </span>
+                        <?php endif; ?>
+                        <span class="cral-cal-list__title"><?php echo esc_html( $event['title'] ); ?></span>
+                        <?php if ( $event['luogo'] ) : ?>
+                        <span class="cral-cal-list__meta">
+                            <span class="cral-cal-list__meta-luogo"><?php echo esc_html( $event['luogo'] ); ?></span>
+                        </span>
+                        <?php endif; ?>
+                        <span class="cral-cal-list__meta-row">
+                            <?php if ( ! empty( $event['categoria'] ) ) : ?>
+                            <span class="cral-cal-list__cat" style="background:<?php echo esc_attr( $cat_bg ); ?>;color:<?php echo esc_attr( $cat_fg ); ?>">
+                                <?php echo esc_html( $event['categoria'] ); ?>
+                            </span>
+                            <?php endif; ?>
+                            <span class="cral-cal-list__stato cral-cal-product__stato cral-cal-product__stato--<?php echo esc_attr( $mod ); ?>">
+                                <?php echo esc_html( $event['stato_label'] ?? '' ); ?>
+                            </span>
+                            <span class="cral-cal-list__parti">
+                                <?php
+                                printf(
+                                    esc_html__( '%1$d / %2$d posti', 'g-event' ),
+                                    (int) ( $event['partecipanti'] ?? 0 ),
+                                    (int) ( $event['posti_totali'] ?? 0 )
+                                );
+                                ?>
+                            </span>
+                        </span>
+                    </span>
+                </a>
+            </article>
+            <?php
+        }
+        return ob_get_clean();
+    }
+
+    /**
+     * Griglia / carosello prossimi eventi.
+     *
+     * @param array<int, array<string, mixed>> $events Eventi.
+     * @return string
+     */
+    protected function render_product_grid( $events ) {
+        if ( empty( $events ) ) {
+            return '<p class="cral-cal__empty cral-cal__empty--grid">' . esc_html__( 'Nessun prossimo evento in programma.', 'g-event' ) . '</p>';
+        }
+
+        $events = array_slice( array_values( $events ), 0, 12 );
+
+        ob_start();
+        foreach ( $events as $event ) {
+            $img   = $event['thumb_md'] ?: $event['thumb'];
+            $mod       = $event['stato_mod'] ?? 'aperto';
+            $img_style = $img ? 'background-image:url(\'' . esc_url( $img ) . '\');' : '';
+            $cat_bg    = $event['categoria_colore'] ?? '#a7c957';
+            $cat_fg    = $event['categoria_testo'] ?? '#111827';
+            $card_accent = '--cral-cat:' . esc_attr( $cat_bg ) . ';';
+            ?>
+            <a class="cral-cal-product"
+               href="<?php echo esc_url( $event['url'] ); ?>"
+               data-event-id="<?php echo esc_attr( (string) $event['id'] ); ?>"
+               style="<?php echo esc_attr( $card_accent ); ?>">
+                <span class="cral-cal-product__media<?php echo $img ? '' : ' cral-cal-product__media--ph'; ?>"<?php echo $img_style ? ' style="' . esc_attr( $img_style ) . '"' : ''; ?>>
+                    <span class="cral-cal-product__shine" aria-hidden="true"></span>
+                    <?php if ( ! empty( $event['categoria'] ) ) : ?>
+                    <span class="cral-cal-product__cat" style="background:<?php echo esc_attr( $cat_bg ); ?>;color:<?php echo esc_attr( $cat_fg ); ?>">
+                        <?php echo esc_html( $event['categoria'] ); ?>
+                    </span>
+                    <?php endif; ?>
+                </span>
+                <span class="cral-cal-product__body">
+                    <?php if ( ! empty( $event['data_card'] ) ) : ?>
+                    <span class="cral-cal-product__when">
+                        <time datetime="<?php echo esc_attr( $event['data_raw'] ); ?>"><?php echo esc_html( $event['data_card'] ); ?></time>
+                    </span>
+                    <?php endif; ?>
+                    <span class="cral-cal-product__title"><?php echo esc_html( $event['title'] ); ?></span>
+                    <?php if ( $event['luogo'] ) : ?>
+                    <span class="cral-cal-product__place"><?php echo esc_html( $event['luogo'] ); ?></span>
+                    <?php endif; ?>
+                    <span class="cral-cal-product__meta-row">
+                        <span class="cral-cal-product__stato cral-cal-product__stato--<?php echo esc_attr( $mod ); ?>">
+                            <?php echo esc_html( $event['stato_label'] ?? '' ); ?>
+                        </span>
+                        <span class="cral-cal-product__parti">
+                            <?php
+                            printf(
+                                /* translators: 1: iscritti, 2: posti totali */
+                                esc_html__( '%1$d / %2$d posti', 'g-event' ),
+                                (int) ( $event['partecipanti'] ?? 0 ),
+                                (int) ( $event['posti_totali'] ?? 0 )
+                            );
+                            ?>
+                        </span>
+                    </span>
+                    <span class="cral-cal-product__cta">
+                        <?php esc_html_e( 'Scopri di più', 'g-event' ); ?>
+                        <span class="cral-cal-product__cta-arrow" aria-hidden="true">→</span>
+                    </span>
+                </span>
+            </a>
+            <?php
+        }
+        return ob_get_clean();
+    }
+
+    /**
+     * Griglia eventi passati (schede verticali).
+     *
+     * @param array<int, array<string, mixed>> $events     Eventi.
+     * @param bool                             $with_empty Mostra empty se vuoto.
+     * @return string
+     */
+    protected function render_past_product_grid( $events, $with_empty = true ) {
+        if ( empty( $events ) ) {
+            return $with_empty
+                ? '<p class="cral-cal__empty cral-cal__empty--grid">' . esc_html__( 'Nessun evento passato.', 'g-event' ) . '</p>'
+                : '';
+        }
+
+        ob_start();
+        foreach ( $events as $event ) {
+            $img         = $event['thumb_md'] ?: $event['thumb'];
+            $img_style   = $img ? 'background-image:url(\'' . esc_url( $img ) . '\');' : '';
+            $cat_bg      = $event['categoria_colore'] ?? '#a7c957';
+            $cat_fg      = $event['categoria_testo'] ?? '#111827';
+            $card_accent = '--cral-cat:' . esc_attr( $cat_bg ) . ';';
+            ?>
+            <a class="cral-cal-product cral-cal-product--past"
+               href="<?php echo esc_url( $event['url'] ); ?>"
+               data-event-id="<?php echo esc_attr( (string) $event['id'] ); ?>"
+               style="<?php echo esc_attr( $card_accent ); ?>">
+                <span class="cral-cal-product__media<?php echo $img ? '' : ' cral-cal-product__media--ph'; ?>"<?php echo $img_style ? ' style="' . esc_attr( $img_style ) . '"' : ''; ?>>
+                    <span class="cral-cal-product__shine" aria-hidden="true"></span>
+                    <?php if ( ! empty( $event['categoria'] ) ) : ?>
+                    <span class="cral-cal-product__cat" style="background:<?php echo esc_attr( $cat_bg ); ?>;color:<?php echo esc_attr( $cat_fg ); ?>">
+                        <?php echo esc_html( $event['categoria'] ); ?>
+                    </span>
+                    <?php endif; ?>
+                    <?php if ( ! empty( $event['data_card'] ) ) : ?>
+                    <span class="cral-cal-product__date-badge">
+                        <time datetime="<?php echo esc_attr( $event['data_raw'] ); ?>"><?php echo esc_html( $event['data_card'] ); ?></time>
+                    </span>
+                    <?php endif; ?>
+                </span>
+                <span class="cral-cal-product__body">
+                    <span class="cral-cal-product__title"><?php echo esc_html( $event['title'] ); ?></span>
+                    <?php if ( $event['luogo'] ) : ?>
+                    <span class="cral-cal-product__place"><?php echo esc_html( $event['luogo'] ); ?></span>
+                    <?php endif; ?>
+                    <span class="cral-cal-product__meta-row">
+                        <span class="cral-cal-product__stato cral-cal-product__stato--concluso">
+                            <?php esc_html_e( 'Concluso', 'g-event' ); ?>
+                        </span>
+                        <span class="cral-cal-product__parti">
+                            <?php
+                            printf(
+                                esc_html__( '%1$d / %2$d posti', 'g-event' ),
+                                (int) ( $event['partecipanti'] ?? 0 ),
+                                (int) ( $event['posti_totali'] ?? 0 )
+                            );
+                            ?>
+                        </span>
+                    </span>
+                    <span class="cral-cal-product__cta">
+                        <?php esc_html_e( 'Vedi evento', 'g-event' ); ?>
+                        <span class="cral-cal-product__cta-arrow" aria-hidden="true">→</span>
+                    </span>
+                </span>
+            </a>
+            <?php
+        }
+        return ob_get_clean();
+    }
+
+    /**
      * Titolo pannello lista eventi con nome mese.
      *
      * @param int $year  Anno.
@@ -527,6 +1119,7 @@ class Calendario_Eventi {
                 }
                 if ( $is_selected ) {
                     $classes[] = 'is-selected';
+                    $classes[] = 'is-active-day';
                 }
 
                 $events = $has_events ? $by_day[ $day ] : array();

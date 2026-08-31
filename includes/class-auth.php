@@ -67,14 +67,34 @@ class Auth
             ? sanitize_text_field(wp_unslash($_POST['socio_id']))
             : '';
         $password = isset($_POST['password'])
-            ? sanitize_text_field(wp_unslash($_POST['password']))
+            ? (string) wp_unslash($_POST['password'])
             : '';
 
         if (empty($socio_id) || empty($password)) {
-            wp_send_json_error(array('message' => 'Inserisci ID socio e password.'));
+            wp_send_json_error(array('message' => 'Inserisci ID socio / username e password.'));
         }
 
-        // Cerca il socio.
+        // 1) Tentativo login WordPress (admin / utenti WP).
+        $wp_user = wp_authenticate($socio_id, $password);
+        if (! is_wp_error($wp_user) && $wp_user instanceof \WP_User) {
+            wp_set_current_user($wp_user->ID);
+            wp_set_auth_cookie($wp_user->ID, true);
+
+            $is_admin = user_can($wp_user, 'manage_options');
+            $redirect = $is_admin
+                ? admin_url()
+                : $this->get_socio_frontend_redirect();
+
+            wp_send_json_success(
+                array(
+                    'message'  => 'Login effettuato.',
+                    'redirect' => $redirect,
+                    'role'     => $is_admin ? 'admin' : 'wp_user',
+                )
+            );
+        }
+
+        // 2) Tentativo login socio CRAL.
         $posts = get_posts(array(
             'post_type'      => 'socio',
             'meta_query'     => array(
@@ -123,7 +143,33 @@ class Auth
             )
         );
 
-        wp_send_json_success(array('message' => 'Login effettuato.'));
+        wp_send_json_success(
+            array(
+                'message'  => 'Login effettuato.',
+                'redirect' => $this->get_socio_frontend_redirect(),
+                'role'     => 'socio',
+            )
+        );
+    }
+
+    /**
+     * Redirect frontend dopo login socio.
+     *
+     * @return string
+     */
+    private function get_socio_frontend_redirect()
+    {
+        $eventi = get_page_by_path('eventi-2');
+        if ($eventi instanceof \WP_Post) {
+            return get_permalink($eventi);
+        }
+
+        $area = get_permalink(get_option('cral_pagina_area_soci'));
+        if ($area) {
+            return $area;
+        }
+
+        return home_url('/eventi-2/');
     }
 
     /**
