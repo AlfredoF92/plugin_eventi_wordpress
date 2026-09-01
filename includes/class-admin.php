@@ -28,6 +28,7 @@ class Admin {
         add_action( 'admin_post_cral_generate_demo_data', array( $this, 'handle_generate_demo_data' ) );
         add_action( 'admin_post_cral_clear_logs', array( $this, 'handle_clear_logs' ) );
         add_action( 'wp_ajax_cral_manage_prenotazione_admin', array( $this, 'handle_manage_prenotazione_admin' ) );
+        add_action( 'wp_ajax_cral_set_prenotazione_stato', array( $this, 'handle_set_prenotazione_stato' ) );
         add_action( 'wp_ajax_cral_add_prenotazione_admin', array( $this, 'handle_add_prenotazione_admin' ) );
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
         add_action( 'in_admin_header', array( $this, 'render_plugin_header' ) );
@@ -350,8 +351,9 @@ class Admin {
         ) );
 
         $stati_label = array(
-            'in_attesa'  => '<span style="color:#f0ad4e;">In attesa</span>',
-            'confermata' => '<span style="color:#46b450;">Confermata</span>',
+            'in_attesa'  => '<span style="color:#f0ad4e;">Prenotato</span>',
+            'confermata' => '<span style="color:#46b450;">Confermato</span>',
+            'scartato'   => '<span style="color:#dc3232;">Scartato</span>',
             'annullata'  => '<span style="color:#dc3232;">Annullata</span>',
         );
 
@@ -363,6 +365,44 @@ class Admin {
         $evento_prezzo_base  = (float) get_post_meta( $evento_id, '_cral_evento_prezzo_base', true );
         $data_iscr_raw       = get_post_meta( $evento_id, '_cral_evento_data_iscrizione', true );
         $data_apertura_raw   = get_post_meta( $evento_id, '_cral_evento_data_apertura_iscrizioni', true );
+        $modalita_iscrizione = Iscrizione_Evento::get_mode( $evento_id );
+        $on_book_stato       = Iscrizione_Evento::get_on_book( $evento_id );
+        $mode_labels         = Iscrizione_Evento::mode_options();
+        $on_book_labels      = Iscrizione_Evento::on_book_options();
+
+        // Ricalcola posti se modalità a limite.
+        if ( Iscrizione_Evento::has_seat_limit( $evento_id ) ) {
+            Iscrizione_Evento::sync_posti_residui( $evento_id );
+            $evento_posti_res = (int) get_post_meta( $evento_id, '_cral_evento_posti_residui', true );
+        }
+
+        // Split in 3 liste (attesa ordinata ASC per data prenotazione).
+        $lista_confermati = array();
+        $lista_attesa     = array();
+        $lista_scartati   = array();
+        foreach ( $prenotazioni as $pren ) {
+            $bucket = Iscrizione_Evento::normalize_list_bucket( (string) get_post_meta( $pren->ID, '_cral_pren_stato', true ) );
+            if ( Iscrizione_Evento::STATO_CONFERMATA === $bucket ) {
+                $lista_confermati[] = $pren;
+            } elseif ( Iscrizione_Evento::STATO_SCARTATO === $bucket ) {
+                $lista_scartati[] = $pren;
+            } else {
+                $lista_attesa[] = $pren;
+            }
+        }
+        usort(
+            $lista_attesa,
+            static function( $a, $b ) {
+                $da = (string) get_post_meta( $a->ID, '_cral_pren_data', true );
+                $db = (string) get_post_meta( $b->ID, '_cral_pren_data', true );
+                $ta = $da ? strtotime( $da ) : 0;
+                $tb = $db ? strtotime( $db ) : 0;
+                if ( $ta === $tb ) {
+                    return $a->ID <=> $b->ID;
+                }
+                return $ta <=> $tb;
+            }
+        );
 
         $acc_socio_enabled   = 'yes' === get_post_meta( $evento_id, '_cral_evento_enable_acc_socio', true );
         $acc_esterno_enabled = 'yes' === get_post_meta( $evento_id, '_cral_evento_enable_acc_esterno', true );
@@ -492,15 +532,32 @@ class Admin {
                         <span class="cral-ev-info-value">€ <?php echo esc_html( number_format( $evento_prezzo_base, 2, ',', '.' ) ); ?></span>
                     </div>
                     <div class="cral-ev-info-item">
-                        <span class="cral-ev-info-label">&#128065; Posti residui</span>
-                        <span class="cral-ev-info-value">
-                            <strong><?php echo esc_html( $evento_posti_res ); ?></strong>
-                            <span style="color:#888;font-size:.9em;"> / <?php echo esc_html( $evento_posti_totali ); ?></span>
-                        </span>
+                        <span class="cral-ev-info-label">&#9881; Modalità iscrizione</span>
+                        <span class="cral-ev-info-value"><strong><?php echo esc_html( $mode_labels[ $modalita_iscrizione ] ?? $modalita_iscrizione ); ?></strong></span>
                     </div>
                     <div class="cral-ev-info-item">
+                        <span class="cral-ev-info-label">&#128203; Alla iscrizione</span>
+                        <span class="cral-ev-info-value"><?php echo esc_html( $on_book_labels[ $on_book_stato ] ?? $on_book_stato ); ?></span>
+                    </div>
+                    <?php if ( Iscrizione_Evento::has_seat_limit( $evento_id ) ) : ?>
+                    <div class="cral-ev-info-item">
+                        <span class="cral-ev-info-label">&#128065; Posti residui</span>
+                        <span class="cral-ev-info-value">
+                            <strong><?php echo esc_html( (string) $evento_posti_res ); ?></strong>
+                            <span style="color:#888;font-size:.9em;"> / <?php echo esc_html( (string) $evento_posti_totali ); ?></span>
+                        </span>
+                    </div>
+                    <?php else : ?>
+                    <div class="cral-ev-info-item">
+                        <span class="cral-ev-info-label">&#128065; Posti</span>
+                        <span class="cral-ev-info-value"><strong>Illimitati</strong></span>
+                    </div>
+                    <?php endif; ?>
+                    <div class="cral-ev-info-item">
                         <span class="cral-ev-info-label">&#128203; Prenotazioni</span>
-                        <span class="cral-ev-info-value"><strong><?php echo esc_html( count( $prenotazioni ) ); ?></strong></span>
+                        <span class="cral-ev-info-value"><strong><?php echo esc_html( (string) count( $prenotazioni ) ); ?></strong>
+                            <span style="color:#888;font-size:.85em;"> (C <?php echo esc_html( (string) count( $lista_confermati ) ); ?> · A <?php echo esc_html( (string) count( $lista_attesa ) ); ?> · S <?php echo esc_html( (string) count( $lista_scartati ) ); ?>)</span>
+                        </span>
                     </div>
                 </div>
 
@@ -545,108 +602,32 @@ class Admin {
             <?php if ( empty( $prenotazioni ) ) : ?>
                 <p>Nessuna prenotazione trovata per questo evento.</p>
             <?php else : ?>
-                <table class="wp-list-table widefat fixed striped">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Socio</th>
-                            <th>Data prenotazione</th>
-                            <th>Biglietti</th>
-                            <th>Biglietto Evento</th>
-                            <th>Accompagnatori</th>
-                            <th>Note</th>
-                            <th>Stato</th>
-                            <th>Totale pagato socio</th>
-                            <th>Azioni</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ( $prenotazioni as $pren ) : ?>
-                            <?php
-                            $socio_id  = get_post_meta( $pren->ID, '_cral_pren_socio_id', true );
-                            $nome      = get_post_meta( $socio_id, '_cral_nome', true );
-                            $cognome   = get_post_meta( $socio_id, '_cral_cognome', true );
-                            $data      = get_post_meta( $pren->ID, '_cral_pren_data', true );
-                            $stato     = get_post_meta( $pren->ID, '_cral_pren_stato', true );
-                            $biglietti = (int) get_post_meta( $pren->ID, '_cral_pren_totale_biglietti', true );
-                            $importo   = get_post_meta( $pren->ID, '_cral_pren_importo_totale', true );
-                            $note      = (string) get_post_meta( $pren->ID, '_cral_pren_note', true );
-                            $partecipanti = carbon_get_post_meta( $pren->ID, 'cral_partecipanti' );
-                            $evento_prezzo = (float) get_post_meta( $evento_id, '_cral_evento_prezzo_base', true );
-
-                            $partecipanti_html = '—';
-                            $partecipanti_sum  = 0.0;
-                            $accompagnatori_count = 0;
-                            if ( ! empty( $partecipanti ) && is_array( $partecipanti ) ) {
-                                $items = array();
-                                foreach ( $partecipanti as $part ) {
-                                    $p_nome    = sanitize_text_field( $part['partecipante_nome'] ?? '' );
-                                    $p_cognome = sanitize_text_field( $part['partecipante_cognome'] ?? '' );
-                                    $p_tipo    = sanitize_text_field( $part['partecipante_tipologia'] ?? '' );
-                                    $p_prezzo  = (float) ( $part['partecipante_prezzo'] ?? 0 );
-                                    $partecipanti_sum += $p_prezzo;
-
-                                    // Mostra in tabella solo gli accompagnatori.
-                                    if ( 'Socio' === $p_tipo ) {
-                                        continue;
-                                    }
-
-                                    $label = trim( $p_nome . ' ' . $p_cognome );
-                                    if ( '' !== $label ) {
-                                        $label .= ' (' . $p_tipo . ') — € ' . number_format( $p_prezzo, 2, ',', '.' );
-                                        $items[] = $label;
-                                        $accompagnatori_count++;
-                                    }
-                                }
-
-                                $partecipanti_html = '<ul style="margin:0; padding-left: 18px;">';
-                                if ( empty( $items ) ) {
-                                    $partecipanti_html .= '<li>Nessun accompagnatore</li>';
-                                } else {
-                                    foreach ( $items as $txt ) {
-                                        $partecipanti_html .= '<li>' . esc_html( $txt ) . '</li>';
-                                    }
-                                }
-                                $partecipanti_html .= '</ul>';
-                            }
-
-                            // Totale pagato della singola prenotazione (biglietto + accompagnatori).
-                            // Se ci sono partecipanti, sommiamo i loro prezzi; altrimenti fallback su importo totale.
-                            $totale_pagato = $partecipanti_sum > 0 ? $partecipanti_sum : (float) $importo;
-                            ?>
-                            <tr>
-                                <td><?php echo esc_html( $pren->ID ); ?></td>
-                                <td>
-                                    <a href="<?php echo esc_url( get_edit_post_link( $socio_id ) ); ?>">
-                                        <?php echo esc_html( $cognome . ' ' . $nome ); ?>
-                                    </a>
-                                </td>
-                                <td><?php echo esc_html( $data ? wp_date( 'd/m/Y H:i', strtotime( $data ) ) : '—' ); ?></td>
-                                <td><?php echo esc_html( '1 + ' . $accompagnatori_count ); ?></td>
-                                <td><?php echo esc_html( '€ ' . number_format( $evento_prezzo, 2, ',', '.' ) ); ?></td>
-                                <td><?php echo wp_kses( $partecipanti_html, array( 'ul' => array( 'style' => array() ), 'li' => array() ) ); ?></td>
-                                <td><?php echo esc_html( $note ?: '—' ); ?></td>
-                                <td><?php echo wp_kses( $stati_label[ $stato ] ?? '—', array( 'span' => array( 'style' => array() ) ) ); ?></td>
-                                <td><?php echo esc_html( '€ ' . number_format( $totale_pagato, 2, ',', '.' ) ); ?></td>
-                                <td>
-                                    <button
-                                        type="button"
-                                        class="button button-small cral-open-pren-modal"
-                                        data-pren-id="<?php echo esc_attr( $pren->ID ); ?>"
-                                        data-pren-title="<?php echo esc_attr( $cognome . ' ' . $nome ); ?>"
-                                        data-pren-accompagnatori="<?php echo esc_attr( wp_json_encode( $items ?? array() ) ); ?>"
-                                        data-pren-date="<?php echo esc_attr( $data ? wp_date( 'd/m/Y H:i', strtotime( $data ) ) : '—' ); ?>"
-                                        data-pren-state="<?php echo esc_attr( $stato ); ?>"
-                                        data-pren-totale="<?php echo esc_attr( number_format( $totale_pagato, 2, ',', '.' ) ); ?>"
-                                        data-pren-note="<?php echo esc_attr( $note ); ?>"
-                                    >
-                                        Visualizza Prenotazione
-                                    </button>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <?php
+                echo $this->render_prenotazioni_list_section( // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    'Lista Confermati',
+                    'cral-pren-list--confermati',
+                    $lista_confermati,
+                    $evento_id,
+                    $stati_label,
+                    array( 'attesa', 'scarta' )
+                );
+                echo $this->render_prenotazioni_list_section( // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    'Lista in attesa',
+                    'cral-pren-list--attesa',
+                    $lista_attesa,
+                    $evento_id,
+                    $stati_label,
+                    array( 'conferma', 'scarta' )
+                );
+                echo $this->render_prenotazioni_list_section( // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    'Lista scartati',
+                    'cral-pren-list--scartati',
+                    $lista_scartati,
+                    $evento_id,
+                    $stati_label,
+                    array( 'conferma', 'attesa' )
+                );
+                ?>
             <?php endif; ?>
 
             <div id="cral-pren-modal" class="cral-pren-modal" style="display:none;">
@@ -845,6 +826,41 @@ class Admin {
             cancelBtn.addEventListener('click', closeModal);
             modal.querySelector('.cral-pren-modal__backdrop').addEventListener('click', closeModal);
 
+            // Sposta tra liste Confermati / Attesa / Scartati.
+            document.querySelectorAll('[data-cral-set-stato]').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    const prenId = btn.getAttribute('data-pren-id') || '';
+                    const stato  = btn.getAttribute('data-cral-set-stato') || '';
+                    if (!prenId || !stato) return;
+                    if (!window.confirm('Confermi lo spostamento di questa prenotazione?')) return;
+
+                    btn.disabled = true;
+                    fetch(ajaxurl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action: 'cral_set_prenotazione_stato',
+                            nonce: '<?php echo esc_js( $manage_nonce ); ?>',
+                            prenotazione_id: String(prenId),
+                            new_stato: String(stato)
+                        })
+                    })
+                    .then(r => r.json())
+                    .then(function(data) {
+                        if (data.success) {
+                            window.location.reload();
+                        } else {
+                            alert((data.data && data.data.message) ? data.data.message : 'Operazione non riuscita.');
+                            btn.disabled = false;
+                        }
+                    })
+                    .catch(function() {
+                        alert('Errore di connessione.');
+                        btn.disabled = false;
+                    });
+                });
+            });
+
             // Nuovo modale: aggiungi prenotazione.
             const addModal = document.getElementById('cral-add-pren-modal');
             const openAddBtn = document.getElementById('cral-open-add-pren-modal');
@@ -986,6 +1002,165 @@ class Admin {
     }
 
     /**
+     * Sezione tabella prenotazioni (Confermati / Attesa / Scartati).
+     *
+     * @param string               $title       Titolo sezione.
+     * @param string               $class       Classe CSS.
+     * @param array<int,\WP_Post>  $items       Prenotazioni.
+     * @param int                  $evento_id   ID evento.
+     * @param array<string,string> $stati_label Label HTML stati.
+     * @param array<int,string>    $actions     Azioni: conferma|attesa|scarta.
+     * @return string
+     */
+    private function render_prenotazioni_list_section( $title, $class, $items, $evento_id, $stati_label, $actions ) {
+        $evento_prezzo = (float) get_post_meta( $evento_id, '_cral_evento_prezzo_base', true );
+        $count         = count( $items );
+
+        ob_start();
+        ?>
+        <section class="cral-pren-list <?php echo esc_attr( $class ); ?>">
+            <h3 class="cral-pren-list__title">
+                <?php echo esc_html( $title ); ?>
+                <span class="cral-pren-list__count"><?php echo esc_html( (string) $count ); ?></span>
+            </h3>
+            <?php if ( empty( $items ) ) : ?>
+                <p class="cral-pren-list__empty">Nessuna prenotazione in questa lista.</p>
+            <?php else : ?>
+            <table class="wp-list-table widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Socio</th>
+                        <th>Data prenotazione</th>
+                        <th>Biglietti</th>
+                        <th>Biglietto Evento</th>
+                        <th>Accompagnatori</th>
+                        <th>Note</th>
+                        <th>Stato</th>
+                        <th>Totale pagato socio</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ( $items as $pren ) : ?>
+                    <?php
+                    $socio_id  = get_post_meta( $pren->ID, '_cral_pren_socio_id', true );
+                    $nome      = get_post_meta( $socio_id, '_cral_nome', true );
+                    $cognome   = get_post_meta( $socio_id, '_cral_cognome', true );
+                    $data      = get_post_meta( $pren->ID, '_cral_pren_data', true );
+                    $stato     = get_post_meta( $pren->ID, '_cral_pren_stato', true );
+                    $importo   = get_post_meta( $pren->ID, '_cral_pren_importo_totale', true );
+                    $note      = (string) get_post_meta( $pren->ID, '_cral_pren_note', true );
+                    $partecipanti = carbon_get_post_meta( $pren->ID, 'cral_partecipanti' );
+
+                    $partecipanti_html    = '—';
+                    $partecipanti_sum     = 0.0;
+                    $accompagnatori_count = 0;
+                    $items_acc            = array();
+                    if ( ! empty( $partecipanti ) && is_array( $partecipanti ) ) {
+                        foreach ( $partecipanti as $part ) {
+                            $p_nome    = sanitize_text_field( $part['partecipante_nome'] ?? '' );
+                            $p_cognome = sanitize_text_field( $part['partecipante_cognome'] ?? '' );
+                            $p_tipo    = sanitize_text_field( $part['partecipante_tipologia'] ?? '' );
+                            $p_prezzo  = (float) ( $part['partecipante_prezzo'] ?? 0 );
+                            $partecipanti_sum += $p_prezzo;
+                            if ( 'Socio' === $p_tipo ) {
+                                continue;
+                            }
+                            $label = trim( $p_nome . ' ' . $p_cognome );
+                            if ( '' !== $label ) {
+                                $label .= ' (' . $p_tipo . ') — € ' . number_format( $p_prezzo, 2, ',', '.' );
+                                $items_acc[] = $label;
+                                $accompagnatori_count++;
+                            }
+                        }
+                        $partecipanti_html = '<ul style="margin:0; padding-left: 18px;">';
+                        if ( empty( $items_acc ) ) {
+                            $partecipanti_html .= '<li>Nessun accompagnatore</li>';
+                        } else {
+                            foreach ( $items_acc as $txt ) {
+                                $partecipanti_html .= '<li>' . esc_html( $txt ) . '</li>';
+                            }
+                        }
+                        $partecipanti_html .= '</ul>';
+                    }
+                    $totale_pagato = $partecipanti_sum > 0 ? $partecipanti_sum : (float) $importo;
+                    ?>
+                    <tr>
+                        <td><?php echo esc_html( (string) $pren->ID ); ?></td>
+                        <td>
+                            <a href="<?php echo esc_url( get_edit_post_link( $socio_id ) ); ?>">
+                                <?php echo esc_html( $cognome . ' ' . $nome ); ?>
+                            </a>
+                        </td>
+                        <td><?php echo esc_html( $data ? wp_date( 'd/m/Y H:i', strtotime( $data ) ) : '—' ); ?></td>
+                        <td><?php echo esc_html( '1 + ' . $accompagnatori_count ); ?></td>
+                        <td><?php echo esc_html( '€ ' . number_format( $evento_prezzo, 2, ',', '.' ) ); ?></td>
+                        <td><?php echo wp_kses( $partecipanti_html, array( 'ul' => array( 'style' => array() ), 'li' => array() ) ); ?></td>
+                        <td><?php echo esc_html( $note ?: '—' ); ?></td>
+                        <td><?php echo wp_kses( $stati_label[ $stato ] ?? '—', array( 'span' => array( 'style' => array() ) ) ); ?></td>
+                        <td><?php echo esc_html( '€ ' . number_format( $totale_pagato, 2, ',', '.' ) ); ?></td>
+                        <td class="cral-pren-list__actions">
+                            <?php if ( in_array( 'conferma', $actions, true ) ) : ?>
+                            <button type="button" class="button button-small button-primary" data-cral-set-stato="confermata" data-pren-id="<?php echo esc_attr( (string) $pren->ID ); ?>">Conferma</button>
+                            <?php endif; ?>
+                            <?php if ( in_array( 'attesa', $actions, true ) ) : ?>
+                            <button type="button" class="button button-small" data-cral-set-stato="in_attesa" data-pren-id="<?php echo esc_attr( (string) $pren->ID ); ?>">Sposta nella lista di attesa</button>
+                            <?php endif; ?>
+                            <?php if ( in_array( 'scarta', $actions, true ) ) : ?>
+                            <button type="button" class="button button-small" data-cral-set-stato="scartato" data-pren-id="<?php echo esc_attr( (string) $pren->ID ); ?>">Scarta</button>
+                            <?php endif; ?>
+                            <button
+                                type="button"
+                                class="button button-small cral-open-pren-modal"
+                                data-pren-id="<?php echo esc_attr( (string) $pren->ID ); ?>"
+                                data-pren-title="<?php echo esc_attr( $cognome . ' ' . $nome ); ?>"
+                                data-pren-accompagnatori="<?php echo esc_attr( wp_json_encode( $items_acc ) ); ?>"
+                                data-pren-date="<?php echo esc_attr( $data ? wp_date( 'd/m/Y H:i', strtotime( $data ) ) : '—' ); ?>"
+                                data-pren-state="<?php echo esc_attr( (string) $stato ); ?>"
+                                data-pren-totale="<?php echo esc_attr( number_format( $totale_pagato, 2, ',', '.' ) ); ?>"
+                                data-pren-note="<?php echo esc_attr( $note ); ?>"
+                            >Visualizza</button>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php endif; ?>
+        </section>
+        <?php
+        return ob_get_clean();
+    }
+
+    /**
+     * AJAX: sposta prenotazione tra liste (confermata / in_attesa / scartato).
+     */
+    public function handle_set_prenotazione_stato() {
+        check_ajax_referer( 'cral_manage_prenotazione_admin', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => 'Permessi insufficienti.' ) );
+        }
+
+        $pren_id   = isset( $_POST['prenotazione_id'] ) ? absint( $_POST['prenotazione_id'] ) : 0;
+        $new_stato = isset( $_POST['new_stato'] ) ? sanitize_text_field( wp_unslash( $_POST['new_stato'] ) ) : '';
+
+        $result = Iscrizione_Evento::set_prenotazione_stato( $pren_id, $new_stato );
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+        }
+
+        $labels = Iscrizione_Evento::stato_labels();
+        wp_send_json_success(
+            array(
+                'message' => sprintf(
+                    'Prenotazione spostata: %s.',
+                    $labels[ $new_stato ] ?? $new_stato
+                ),
+            )
+        );
+    }
+
+    /**
      * Gestione modifiche prenotazione da modale admin.
      */
     public function handle_manage_prenotazione_admin() {
@@ -1007,12 +1182,10 @@ class Admin {
             wp_send_json_error( array( 'message' => 'Evento non valido.' ) );
         }
 
-        $partecipanti = carbon_get_post_meta( $pren_id, 'cral_partecipanti' );
-        $partecipanti = is_array( $partecipanti ) ? $partecipanti : array();
-        $total_before = count( $partecipanti ) > 0 ? count( $partecipanti ) : (int) get_post_meta( $pren_id, '_cral_pren_totale_biglietti', true );
+        $partecipanti   = carbon_get_post_meta( $pren_id, 'cral_partecipanti' );
+        $partecipanti   = is_array( $partecipanti ) ? $partecipanti : array();
         $stato_corrente = (string) get_post_meta( $pren_id, '_cral_pren_stato', true );
 
-        // Salva sempre eventuali note.
         update_post_meta( $pren_id, '_cral_pren_note', $note );
 
         if ( 'update' === $action ) {
@@ -1020,12 +1193,15 @@ class Admin {
         }
 
         if ( 'annulla' === $action ) {
-            if ( 'annullata' === $stato_corrente ) {
-                wp_send_json_error( array( 'message' => 'La prenotazione e gia annullata.' ) );
+            $bucket = Iscrizione_Evento::normalize_list_bucket( $stato_corrente );
+            if ( Iscrizione_Evento::STATO_SCARTATO === $bucket ) {
+                wp_send_json_error( array( 'message' => 'La prenotazione è già scartata/annullata.' ) );
             }
-            update_post_meta( $pren_id, '_cral_pren_stato', 'annullata' );
-            $this->adjust_event_seats( $evento_id, $total_before );
-            wp_send_json_success( array( 'message' => 'Prenotazione annullata e posti aggiornati correttamente.' ) );
+            $result = Iscrizione_Evento::set_prenotazione_stato( $pren_id, Iscrizione_Evento::STATO_SCARTATO );
+            if ( is_wp_error( $result ) ) {
+                wp_send_json_error( array( 'message' => $result->get_error_message() ) );
+            }
+            wp_send_json_success( array( 'message' => 'Prenotazione scartata e posti aggiornati.' ) );
         }
 
         // remove_acc.
@@ -1057,7 +1233,8 @@ class Admin {
         carbon_set_post_meta( $pren_id, 'cral_partecipanti', $partecipanti );
         update_post_meta( $pren_id, '_cral_pren_totale_biglietti', $totale_biglietti );
         update_post_meta( $pren_id, '_cral_pren_importo_totale', $totale_importo );
-        $this->adjust_event_seats( $evento_id, 1 );
+
+        Iscrizione_Evento::sync_posti_residui( $evento_id );
 
         wp_send_json_success( array( 'message' => 'Accompagnatore eliminato. Prezzo e posti aggiornati.' ) );
     }
@@ -1146,21 +1323,14 @@ class Admin {
         }
 
         $totale_biglietti = count( $partecipanti );
-        global $wpdb;
-        $updated = $wpdb->query(
-            $wpdb->prepare(
-                "UPDATE {$wpdb->postmeta}
-                 SET meta_value = CAST(meta_value AS UNSIGNED) - %d
-                 WHERE post_id = %d
-                 AND meta_key = '_cral_evento_posti_residui'
-                 AND CAST(meta_value AS UNSIGNED) >= %d",
-                $totale_biglietti,
-                $evento_id,
-                $totale_biglietti
-            )
-        );
-        if ( ! $updated ) {
-            wp_send_json_error( array( 'message' => 'Posti disponibili insufficienti.' ) );
+
+        // Admin crea sempre come Confermata: con limite posti verifica disponibilità.
+        if ( Iscrizione_Evento::has_seat_limit( $evento_id ) ) {
+            $totali = (int) get_post_meta( $evento_id, '_cral_evento_posti_totali', true );
+            $usati  = Iscrizione_Evento::count_confirmed_tickets( $evento_id );
+            if ( ( $usati + $totale_biglietti ) > $totali ) {
+                wp_send_json_error( array( 'message' => 'Posti disponibili insufficienti.' ) );
+            }
         }
 
         $post_id = wp_insert_post(
@@ -1170,21 +1340,22 @@ class Admin {
                 'post_status' => 'publish',
             )
         );
-        if ( is_wp_error( $post_id ) ) {
-            $this->adjust_event_seats( $evento_id, $totale_biglietti );
+        if ( is_wp_error( $post_id ) || ! $post_id ) {
             wp_send_json_error( array( 'message' => 'Errore creazione prenotazione.' ) );
         }
 
         update_post_meta( $post_id, '_cral_pren_socio_id', $socio_id );
         update_post_meta( $post_id, '_cral_pren_evento_id', $evento_id );
         update_post_meta( $post_id, '_cral_pren_data', current_time( 'mysql' ) );
-        update_post_meta( $post_id, '_cral_pren_stato', 'confermata' );
+        update_post_meta( $post_id, '_cral_pren_stato', Iscrizione_Evento::STATO_CONFERMATA );
         update_post_meta( $post_id, '_cral_pren_totale_biglietti', $totale_biglietti );
         update_post_meta( $post_id, '_cral_pren_importo_totale', $importo_totale );
         update_post_meta( $post_id, '_cral_pren_pagamento', 'yes' );
         update_post_meta( $post_id, '_cral_pren_data_pagamento', wp_date( 'Y-m-d' ) );
         update_post_meta( $post_id, '_cral_pren_note', $note );
         carbon_set_post_meta( $post_id, 'cral_partecipanti', $partecipanti );
+
+        Iscrizione_Evento::sync_posti_residui( $evento_id );
 
         $mailer = new Mailer();
         $mailer->send_conferma_socio( $post_id, $socio_id, $evento_id );

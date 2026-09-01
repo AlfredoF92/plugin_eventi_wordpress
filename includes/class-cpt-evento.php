@@ -356,17 +356,47 @@ class CPT_Evento {
                 Field::make( 'rich_text', 'cral_evento_descrizione', 'Descrizione breve' )
                     ->set_help_text( 'Breve descrizione dell\'evento mostrata nel box di prenotazione.' ),
 
+                Field::make( 'html', 'cral_evento_iscrizione_help', 'Modalità iscrizione — guida' )
+                    ->set_html( Iscrizione_Evento::help_box_html() ),
+
+                Field::make( 'select', 'cral_evento_modalita_iscrizione', 'Modalità iscrizione' )
+                    ->set_options( Iscrizione_Evento::mode_options() )
+                    ->set_default_value( Iscrizione_Evento::MODE_ILLIMITATI )
+                    ->set_help_text( 'Controlla posti illimitati, limite, o limite con lista d\'attesa.' ),
+
+                Field::make( 'select', 'cral_evento_stato_prenotazione', 'Stato prenotazione (alla iscrizione utente)' )
+                    ->set_options( Iscrizione_Evento::on_book_options() )
+                    ->set_default_value( Iscrizione_Evento::ON_BOOK_PRENOTATO )
+                    ->set_help_text( 'Cosa succede quando un socio si iscrive dal sito.' ),
+
                 Field::make( 'text', 'cral_evento_posti_totali', 'Posti totali' )
                     ->set_attribute( 'type', 'number' )
                     ->set_attribute( 'min', '1' )
-                    ->set_required( true )
-                    ->set_help_text( 'Numero massimo assoluto di biglietti vendibili per questo evento.' ),
+                    ->set_conditional_logic(
+                        array(
+                            array(
+                                'field'   => 'cral_evento_modalita_iscrizione',
+                                'value'   => array( Iscrizione_Evento::MODE_LIMITE, Iscrizione_Evento::MODE_LIMITE_ATTESA ),
+                                'compare' => 'IN',
+                            ),
+                        )
+                    )
+                    ->set_help_text( 'Numero massimo di posti confermabili. Obbligatorio con modalità a posti limitati.' ),
 
                 Field::make( 'text', 'cral_evento_posti_residui', 'Posti residui' )
                     ->set_attribute( 'type', 'number' )
                     ->set_attribute( 'min', '0' )
                     ->set_attribute( 'readOnly', 'readOnly' )
-                    ->set_help_text( 'Aggiornato automaticamente dal plugin. Non modificare.' ),
+                    ->set_conditional_logic(
+                        array(
+                            array(
+                                'field'   => 'cral_evento_modalita_iscrizione',
+                                'value'   => array( Iscrizione_Evento::MODE_LIMITE, Iscrizione_Evento::MODE_LIMITE_ATTESA ),
+                                'compare' => 'IN',
+                            ),
+                        )
+                    )
+                    ->set_help_text( 'Aggiornato automaticamente in base ai Confermati. Non modificare.' ),
 
             ) );
 
@@ -856,16 +886,23 @@ class CPT_Evento {
      * @param \Carbon_Fields\Container\Post_Meta_Container $container Container CF.
      */
     public function init_posti_residui( $post_id, $container ) {
-        if ( get_post_type( $post_id ) !== 'evento' ) {
+        if ( 'evento' !== get_post_type( $post_id ) ) {
+            return;
+        }
+
+        $mode = Iscrizione_Evento::get_mode( $post_id );
+        if ( Iscrizione_Evento::MODE_ILLIMITATI === $mode ) {
             return;
         }
 
         $posti_totali  = get_post_meta( $post_id, '_cral_evento_posti_totali', true );
         $posti_residui = get_post_meta( $post_id, '_cral_evento_posti_residui', true );
 
-        if ( ! empty( $posti_totali ) && empty( $posti_residui ) ) {
+        if ( ! empty( $posti_totali ) && ( '' === $posti_residui || null === $posti_residui ) ) {
             update_post_meta( $post_id, '_cral_evento_posti_residui', $posti_totali );
         }
+
+        Iscrizione_Evento::sync_posti_residui( $post_id );
     }
 
     /**

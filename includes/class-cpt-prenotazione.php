@@ -30,6 +30,22 @@ class CPT_Prenotazione {
         add_filter( 'manage_prenotazione_posts_columns', array( $this, 'set_columns' ) );
         add_action( 'manage_prenotazione_posts_custom_column', array( $this, 'render_column' ), 10, 2 );
         add_filter( 'manage_edit-prenotazione_sortable_columns', array( $this, 'set_sortable_columns' ) );
+        add_action( 'save_post_prenotazione', array( $this, 'sync_seats_after_save' ), 30, 1 );
+    }
+
+    /**
+     * Dopo salvataggio prenotazione (anche da edit CPT), ricalcola posti evento.
+     *
+     * @param int $post_id ID prenotazione.
+     */
+    public function sync_seats_after_save( $post_id ) {
+        if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+            return;
+        }
+        $evento_id = (int) get_post_meta( $post_id, '_cral_pren_evento_id', true );
+        if ( $evento_id > 0 ) {
+            Iscrizione_Evento::sync_posti_residui( $evento_id );
+        }
     }
 
     /**
@@ -81,9 +97,10 @@ public function register_fields() {
 
             Field::make( 'select', 'cral_pren_stato', 'Stato' )
                 ->set_options( array(
-                    'in_attesa'  => 'In attesa',
-                    'confermata' => 'Confermata',
-                    'annullata'  => 'Annullata',
+                    'in_attesa'  => 'Prenotato / Lista d\'attesa',
+                    'confermata' => 'Confermato',
+                    'scartato'   => 'Scartato',
+                    'annullata'  => 'Annullata (legacy)',
                 ) ),
 
             Field::make( 'text', 'cral_pren_totale_biglietti', 'Totale biglietti' )
@@ -201,9 +218,10 @@ public function register_fields() {
             case 'cral_pren_stato':
                 $stato  = get_post_meta( $post_id, '_cral_pren_stato', true );
                 $labels = array(
-                    'in_attesa'  => '<span style="color:#f0ad4e;">In attesa</span>',
-                    'confermata' => '<span style="color:#46b450;">Confermata</span>',
-                    'annullata'  => '<span style="color:#dc3232;">Annullata</span>',
+                    'in_attesa'  => '<span style="color:#f0ad4e;">Prenotato</span>',
+                    'confermata' => '<span style="color:#46b450;">Confermato</span>',
+                    'scartato'   => '<span style="color:#dc3232;">Scartato</span>',
+                    'annullata'  => '<span style="color:#dc3232;">Scartato</span>',
                 );
                 echo wp_kses( $labels[ $stato ] ?? '—', array( 'span' => array( 'style' => array() ) ) );
                 break;

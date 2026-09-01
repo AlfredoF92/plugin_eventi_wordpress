@@ -790,3 +790,79 @@ body.post-type-evento .cf-field:has(input[name="carbon_fields_compact_input[_cra
 .column-cral_scheda {
     width: 120px;
 }
+
+/* -- LISTE PRENOTAZIONI (Confermati / Attesa / Scartati) ------------------- */
+.cral-pren-list {
+    margin: 22px 0 28px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+.cral-pren-list__title {
+    margin: 0;
+    padding: 12px 16px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.cral-pren-list__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.6em;
+    height: 1.6em;
+    padding: 0 6px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #e2e8f0;
+    color: #334155;
+}
+.cral-pren-list--confermati .cral-pren-list__title {
+    background: #ecfdf5;
+    border-bottom-color: #a7f3d0;
+}
+.cral-pren-list--confermati .cral-pren-list__count {
+    background: #059669;
+    color: #fff;
+}
+.cral-pren-list--attesa .cral-pren-list__title {
+    background: #fffbeb;
+    border-bottom-color: #fde68a;
+}
+.cral-pren-list--attesa .cral-pren-list__count {
+    background: #d97706;
+    color: #fff;
+}
+.cral-pren-list--scartati .cral-pren-list__title {
+    background: #fef2f2;
+    border-bottom-color: #fecaca;
+}
+.cral-pren-list--scartati .cral-pren-list__count {
+    background: #dc2626;
+    color: #fff;
+}
+.cral-pren-list__empty {
+    margin: 0;
+    padding: 16px;
+    color: #64748b;
+}
+.cral-pren-list .wp-list-table {
+    border: 0;
+    box-shadow: none;
+    margin: 0;
+}
+.cral-pren-list__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+.cral-pren-list__actions .button {
+    margin: 0;
+}
