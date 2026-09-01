@@ -1,0 +1,306 @@
+/* =====================================================
+   CRAL – Area personale [area-personale]
+   Stile allineato a scheda evento + card calendario
+   ===================================================== */
+
+.cral-area {
+    --cral-primary: #7fa83a;
+    --cral-text: #111827;
+    --cral-muted: #4b5563;
+    --cral-neutral: #5b6472;
+
+    font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    color: var(--cral-text);
+    background: transparent;
+    box-sizing: border-box;
+}
+
+.cral-area *,
+.cral-area *::before,
+.cral-area *::after {
+    box-sizing: border-box;
+}
+
+.elementor-widget-shortcode:has(.cral-area) .elementor-widget-container,
+.elementor-shortcode:has(.cral-area) .elementor-widget-container {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+.cral-area__band--top,
+.cral-area__band--body {
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+    width: 100vw;
+    max-width: 100vw;
+    box-sizing: border-box;
+}
+
+.cral-area__band--top {
+    background:
+        radial-gradient(1200px 420px at 85% 20%, rgba(167, 201, 87, 0.14), transparent 60%),
+        linear-gradient(160deg, #2c333b 0%, #23282f 55%, #1c2127 100%);
+    color: #f3f4f6;
+    padding: 28px 0 32px;
+}
+
+.cral-area__band--body {
+    background: #eef0f3;
+    color: var(--cral-text);
+    padding: 28px 0 48px;
+}
+
+.cral-area__inner {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+    box-sizing: border-box;
+}
+
+.cral-area__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 20px 28px;
+    align-items: start;
+}
+
+.cral-area__intro {
+    min-width: 0;
+}
+
+.cral-area__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 14px;
+}
+
+.cral-area__identity {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    min-width: 0;
+}
+
+.cral-area__avatar {
+    --cral-avatar-hue: 210;
+    flex-shrink: 0;
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    position: relative;
+    background:
+        linear-gradient(160deg,
+            hsl(var(--cral-avatar-hue), 12%, 48%) 0%,
+            hsl(var(--cral-avatar-hue), 14%, 34%) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.cral-area__avatar-initials {
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    text-shadow: none;
+}
+
+.cral-area__avatar-icon {
+    display: none;
+}
+
+.cral-area__identity-text {
+    min-width: 0;
+    padding-top: 4px;
+}
+
+.cral-area__hello {
+    margin: 0 0 4px;
+    font-size: .9rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.cral-area__title {
+    margin: 0;
+    font-size: clamp(1.55rem, 3vw, 2.2rem);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    color: #fff;
+}
+
+.cral-area__excerpt {
+    margin: 8px 0 0;
+    font-size: .88rem;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.72);
+    max-width: 36rem;
+}
+
+.cral-area__facts {
+    margin-top: 18px;
+}
+
+.cral-area__facts .cral-scheda__fi {
+    align-items: flex-start;
+}
+
+.cral-area__facts .cral-scheda__fi-icon {
+    margin-top: 1px;
+}
+
+.cral-area__actions {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+}
+
+.cral-area__actions .cral-logout,
+.cral-area__actions .cral-btn,
+.cral-area__actions a {
+    color: #fff !important;
+    border-color: rgba(255, 255, 255, 0.28) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    text-decoration: none !important;
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: .82rem;
+    font-weight: 650;
+}
+
+.cral-area__actions a:hover {
+    background: rgba(255, 255, 255, 0.14) !important;
+}
+
+.cral-area__login-prompt {
+    max-width: 34rem;
+    padding: 8px 0;
+}
+
+.cral-area__login-prompt .cral-scheda__btn {
+    margin-top: 16px;
+    display: inline-flex;
+}
+
+.cral-area__section {
+    margin: 0 0 36px;
+}
+
+.cral-area__section:last-child {
+    margin-bottom: 0;
+}
+
+.cral-area__section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.cral-area__section-head .cral-scheda__section-title {
+    margin: 0;
+}
+
+.cral-area__section-titles {
+    min-width: 0;
+}
+
+.cral-area__section-meta {
+    margin: 6px 0 0;
+    font-size: .82rem;
+    font-weight: 550;
+    color: var(--cral-neutral);
+}
+
+.cral-area__track--upcoming > .cral-cal-product,
+.cral-area__track--upcoming > .cral-area__slot-empty {
+    flex: 0 0 calc((100% - 54px) / 4);
+    max-width: calc((100% - 54px) / 4);
+}
+
+.cral-area__track--past > .cral-cal-product,
+.cral-area__track--past > .cral-area__slot-empty {
+    flex: 0 0 calc((100% - 50px) / 6);
+    max-width: calc((100% - 50px) / 6);
+}
+
+/* Slot vuoto: occupa spazio, senza scheda/testo */
+.cral-area__slot-empty {
+    flex-shrink: 0;
+    visibility: hidden;
+    pointer-events: none;
+    min-height: 1px;
+    align-self: stretch;
+}
+
+.cral-area__track--upcoming > .cral-area__slot-empty {
+    /* altezza tipica card upcoming */
+    min-height: 280px;
+}
+
+.cral-area__track--past > .cral-area__slot-empty,
+.cral-area__slot-empty--past {
+    min-height: 220px;
+}
+
+@media (max-width: 960px) {
+    .cral-area__header {
+        grid-template-columns: 1fr;
+    }
+
+    .cral-area__actions {
+        justify-content: flex-start;
+    }
+
+    .cral-area__track--upcoming > .cral-cal-product,
+    .cral-area__track--upcoming > .cral-area__slot-empty {
+        flex-basis: calc((100% - 18px) / 2);
+        max-width: calc((100% - 18px) / 2);
+    }
+
+    .cral-area__track--past > .cral-cal-product,
+    .cral-area__track--past > .cral-area__slot-empty {
+        flex-basis: calc((100% - 20px) / 3);
+        max-width: calc((100% - 20px) / 3);
+    }
+}
+
+@media (max-width: 560px) {
+    .cral-area__band--top {
+        padding: 22px 0 26px;
+    }
+
+    .cral-area__band--body {
+        padding: 22px 0 36px;
+    }
+
+    .cral-area__avatar {
+        width: 64px;
+        height: 64px;
+    }
+
+    .cral-area__avatar-initials {
+        font-size: 1.15rem;
+    }
+
+    .cral-area__track--upcoming > .cral-cal-product,
+    .cral-area__track--upcoming > .cral-area__slot-empty,
+    .cral-area__track--past > .cral-cal-product,
+    .cral-area__track--past > .cral-area__slot-empty {
+        flex-basis: 82%;
+        max-width: 82%;
+    }
+}

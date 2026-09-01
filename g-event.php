@@ -63,9 +63,15 @@ require_once __DIR__ . '/includes/class-evento-scheda.php';
 require_once __DIR__ . '/includes/class-calendario-eventi.php';
 require_once __DIR__ . '/includes/class-calendario-admin.php';
 require_once __DIR__ . '/includes/class-footer-custom.php';
+require_once __DIR__ . '/includes/class-area-personale.php';
+require_once __DIR__ . '/includes/class-siteground-cache.php';
 
 // Inizializza tutto dentro plugins_loaded.
 add_action( 'plugins_loaded', function() {
+    // Disabilita cache SiteGround il prima possibile.
+    $sg_cache = new \GEvent\Siteground_Cache();
+    $sg_cache->init();
+
     // CPT Socio.
     $cpt_socio = new \GEvent\CPT_Socio();
     $cpt_socio->init();
@@ -129,6 +135,10 @@ add_action( 'plugins_loaded', function() {
     // Footer custom [footer-custom].
     $footer_custom = new \GEvent\Footer_Custom();
     $footer_custom->init();
+
+    // Area personale [area-personale].
+    $area_personale = new \GEvent\Area_Personale();
+    $area_personale->init();
 
 } );
 

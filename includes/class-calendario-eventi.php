@@ -23,6 +23,13 @@ class Calendario_Eventi {
     private $dynamic = null;
 
     /**
+     * Cache mappa evento_id => stato prenotazione del socio corrente.
+     *
+     * @var array<int, string>|false
+     */
+    private $booked_event_ids = false;
+
+    /**
      * Registra shortcode e AJAX.
      */
     public function init() {
@@ -93,7 +100,7 @@ class Calendario_Eventi {
         self::$assets_enqueued = true;
 
         $base = plugin_dir_url( dirname( __FILE__ ) );
-        $ver  = '1.7.4';
+        $ver  = '1.7.5';
 
         wp_enqueue_style(
             'g-event-calendario-font',
@@ -155,6 +162,11 @@ class Calendario_Eventi {
      * @return string
      */
     public function render( $atts ) {
+        if ( ! Auth_Frontend::is_cral_authenticated() ) {
+            $auth_frontend = new Auth_Frontend();
+            return $auth_frontend->render_login();
+        }
+
         $this->enqueue_assets();
 
         $atts = shortcode_atts(
@@ -535,27 +547,29 @@ class Calendario_Eventi {
     }
 
     /**
-     * Stato iscrizione del socio loggato per un evento.
+     * Mappa ID eventi a cui il socio loggato è iscritto (confermata / in_attesa).
      *
-     * @param int $event_id ID evento.
-     * @return array{code: string, label: string, pren_id?: int}
+     * @return array<int, string> evento_id => stato
      */
-    protected function get_socio_stato_evento( $event_id ) {
-        $auth     = new Auth();
-        $socio_id = $auth->get_current_socio();
-
-        if ( ! $socio_id ) {
-            return array(
-                'code'  => 'non_loggato',
-                'label' => __( 'Accedi per prenotarti', 'g-event' ),
-            );
+    protected function get_booked_event_ids() {
+        if ( false !== $this->booked_event_ids ) {
+            return is_array( $this->booked_event_ids ) ? $this->booked_event_ids : array();
         }
 
-        $active = get_posts(
+        $this->booked_event_ids = array();
+
+        $auth     = new Auth();
+        $socio_id = $auth->get_current_socio();
+        if ( ! $socio_id ) {
+            return $this->booked_event_ids;
+        }
+
+        $pren_ids = get_posts(
             array(
                 'post_type'      => 'prenotazione',
                 'post_status'    => 'publish',
-                'posts_per_page' => 1,
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
                 'meta_query'     => array(
                     'relation' => 'AND',
                     array(
@@ -563,37 +577,94 @@ class Calendario_Eventi {
                         'value' => (string) $socio_id,
                     ),
                     array(
-                        'key'   => '_cral_pren_evento_id',
-                        'value' => (string) $event_id,
-                    ),
-                    array(
                         'key'     => '_cral_pren_stato',
                         'value'   => array( 'confermata', 'in_attesa' ),
                         'compare' => 'IN',
                     ),
                 ),
-                'fields'         => 'ids',
             )
         );
 
-        if ( ! empty( $active ) ) {
-            $pren_id = (int) $active[0];
-            $stato   = (string) get_post_meta( $pren_id, '_cral_pren_stato', true );
-            $labels  = array(
-                'in_attesa'  => __( 'Iscrizione in attesa di conferma', 'g-event' ),
-                'confermata' => __( 'Sei iscritto — Confermata', 'g-event' ),
-            );
+        foreach ( $pren_ids as $pren_id ) {
+            $evento_id = (int) get_post_meta( (int) $pren_id, '_cral_pren_evento_id', true );
+            if ( $evento_id > 0 ) {
+                $stato = (string) get_post_meta( (int) $pren_id, '_cral_pren_stato', true );
+                $this->booked_event_ids[ $evento_id ] = $stato ?: 'confermata';
+            }
+        }
 
+        return $this->booked_event_ids;
+    }
+
+    /**
+     * True se il socio è iscritto all'evento.
+     *
+     * @param int $event_id ID evento.
+     * @return bool
+     */
+    protected function is_event_booked_by_socio( $event_id ) {
+        $ids = $this->get_booked_event_ids();
+        return isset( $ids[ (int) $event_id ] );
+    }
+
+    /**
+     * Badge iscrizione / partecipazione (alto a destra sulla media).
+     *
+     * @param array<string, mixed> $event   Evento formattato.
+     * @param bool                 $is_past Se true: "Partecipato", altrimenti "Già iscritto".
+     * @return string
+     */
+    protected function render_booking_badge( $event, $is_past = false ) {
+        $code = (string) ( $event['socio_stato'] ?? '' );
+        if ( ! in_array( $code, array( 'confermata', 'in_attesa' ), true ) ) {
+            return '';
+        }
+
+        $label = $is_past
+            ? __( 'Partecipato', 'g-event' )
+            : __( 'Già iscritto', 'g-event' );
+        $mod   = $is_past ? 'partecipato' : 'iscritto';
+
+        return sprintf(
+            '<span class="cral-cal-product__booked cral-cal-product__booked--%1$s">%2$s</span>',
+            esc_attr( $mod ),
+            esc_html( $label )
+        );
+    }
+
+    /**
+     * Stato iscrizione del socio loggato per un evento.
+     *
+     * @param int $event_id ID evento.
+     * @return array{code: string, label: string}
+     */
+    protected function get_socio_stato_evento( $event_id ) {
+        if ( ! ( new Auth() )->get_current_socio() ) {
             return array(
-                'code'    => $stato,
-                'label'   => $labels[ $stato ] ?? $stato,
-                'pren_id' => $pren_id,
+                'code'  => 'non_loggato',
+                'label' => __( 'Accedi per prenotarti', 'g-event' ),
             );
         }
 
+        $booked   = $this->get_booked_event_ids();
+        $event_id = (int) $event_id;
+
+        if ( ! isset( $booked[ $event_id ] ) ) {
+            return array(
+                'code'  => 'non_prenotato',
+                'label' => __( 'Non sei iscritto', 'g-event' ),
+            );
+        }
+
+        $stato  = $booked[ $event_id ];
+        $labels = array(
+            'in_attesa'  => __( 'Iscrizione in attesa di conferma', 'g-event' ),
+            'confermata' => __( 'Sei iscritto — Confermata', 'g-event' ),
+        );
+
         return array(
-            'code'  => 'non_prenotato',
-            'label' => __( 'Non sei iscritto', 'g-event' ),
+            'code'  => $stato,
+            'label' => $labels[ $stato ] ?? $stato,
         );
     }
 
@@ -913,6 +984,8 @@ class Calendario_Eventi {
             $cat_fg  = $event['categoria_testo'] ?? '#111827';
             $mod     = $event['stato_mod'] ?? 'aperto';
             $accent  = '--cral-cat:' . esc_attr( $cat_bg ) . ';';
+            $is_past = ( 'concluso' === $mod )
+                || ( ! empty( $event['data_raw'] ) && strtotime( (string) $event['data_raw'] ) < current_time( 'timestamp' ) );
             ?>
             <article class="cral-cal-list__item cral-cal-list__item--day" data-event-id="<?php echo esc_attr( (string) $event['id'] ); ?>" style="<?php echo esc_attr( $accent ); ?>">
                 <a class="cral-cal-list__btn" href="<?php echo esc_url( $event['url'] ); ?>">
@@ -922,6 +995,7 @@ class Calendario_Eventi {
                         <?php else : ?>
                         <span class="cral-cal-thumb cral-cal-thumb--placeholder" aria-hidden="true">&#127917;</span>
                         <?php endif; ?>
+                        <?php echo $this->render_booking_badge( $event, $is_past ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                     </span>
                     <span class="cral-cal-list__body">
                         <?php if ( ! empty( $event['data_card'] ) || ! empty( $event['ora'] ) ) : ?>
@@ -990,6 +1064,7 @@ class Calendario_Eventi {
                style="<?php echo esc_attr( $card_accent ); ?>">
                 <span class="cral-cal-product__media<?php echo $img ? '' : ' cral-cal-product__media--ph'; ?>"<?php echo $img_style ? ' style="' . esc_attr( $img_style ) . '"' : ''; ?>>
                     <span class="cral-cal-product__shine" aria-hidden="true"></span>
+                    <?php echo $this->render_booking_badge( $event, false ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                     <?php if ( ! empty( $event['categoria'] ) ) : ?>
                     <span class="cral-cal-product__cat" style="background:<?php echo esc_attr( $cat_bg ); ?>;color:<?php echo esc_attr( $cat_fg ); ?>">
                         <?php echo esc_html( $event['categoria'] ); ?>
@@ -1060,6 +1135,7 @@ class Calendario_Eventi {
                style="<?php echo esc_attr( $card_accent ); ?>">
                 <span class="cral-cal-product__media<?php echo $img ? '' : ' cral-cal-product__media--ph'; ?>"<?php echo $img_style ? ' style="' . esc_attr( $img_style ) . '"' : ''; ?>>
                     <span class="cral-cal-product__shine" aria-hidden="true"></span>
+                    <?php echo $this->render_booking_badge( $event, true ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                     <?php if ( ! empty( $event['categoria'] ) ) : ?>
                     <span class="cral-cal-product__cat" style="background:<?php echo esc_attr( $cat_bg ); ?>;color:<?php echo esc_attr( $cat_fg ); ?>">
                         <?php echo esc_html( $event['categoria'] ); ?>

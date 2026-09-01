@@ -13,6 +13,13 @@ namespace GEvent;
 class Auth_Frontend {
 
     /**
+     * Evita di stampare lo script logout più volte.
+     *
+     * @var bool
+     */
+    private static $logout_script_enqueued = false;
+
+    /**
      * Registra gli hook WordPress.
      */
     public function init() {
@@ -22,7 +29,12 @@ class Auth_Frontend {
         add_shortcode( 'ciao-user', array( $this, 'render_ciao_user' ) );
         add_action( 'init', array( $this, 'maybe_update_site_branding' ), 5 );
         add_action( 'init', array( $this, 'ensure_demo_login_accounts' ), 20 );
+        add_action( 'init', array( $this, 'maybe_bust_front_cache' ), 30 );
+        add_action( 'template_redirect', array( $this, 'disable_auth_page_cache' ), 0 );
+        add_action( 'template_redirect', array( $this, 'redirect_guest_from_protected_pages' ), 1 );
         add_action( 'template_redirect', array( $this, 'start_branding_output_buffer' ), 0 );
+        add_action( 'send_headers', array( $this, 'send_nocache_headers' ) );
+        add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_auth_gate_script' ) );
         add_filter( 'document_title_parts', array( $this, 'filter_document_title_parts' ) );
         add_filter( 'pre_option_blogname', array( $this, 'filter_blogname' ) );
         add_filter( 'option_blogname', array( $this, 'filter_blogname' ) );
@@ -282,32 +294,343 @@ class Auth_Frontend {
     }
 
     /**
+     * Percorso normalizzato della richiesta corrente.
+     *
+     * @return string
+     */
+    private static function get_current_request_path() {
+        $uri  = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
+        $path = wp_parse_url( $uri, PHP_URL_PATH );
+
+        return untrailingslashit( $path ?: '/' );
+    }
+
+    /**
+     * Confronta due URL ignorando query string e slash finali.
+     *
+     * @param string $url_a Primo URL.
+     * @param string $url_b Secondo URL.
+     * @return bool
+     */
+    public static function is_same_url( $url_a, $url_b ) {
+        if ( ! $url_a || ! $url_b ) {
+            return false;
+        }
+
+        $path_a = wp_parse_url( $url_a, PHP_URL_PATH );
+        $path_b = wp_parse_url( $url_b, PHP_URL_PATH );
+
+        return untrailingslashit( $path_a ?: '/' ) === untrailingslashit( $path_b ?: '/' );
+    }
+
+    /**
+     * URL pagina login (opzione admin o slug /login/).
+     *
+     * @return string
+     */
+    public static function get_login_page_url() {
+        $front_id = (int) get_option( 'page_on_front', 0 );
+        $login_id = (int) get_option( 'cral_pagina_login', 0 );
+
+        if ( $login_id && $login_id !== $front_id ) {
+            $url = get_permalink( $login_id );
+            if ( $url && ! self::is_same_url( $url, home_url( '/' ) ) ) {
+                return $url;
+            }
+        }
+
+        $page = get_page_by_path( 'login' );
+        if ( $page instanceof \WP_Post && (int) $page->ID !== $front_id ) {
+            return get_permalink( $page );
+        }
+
+        return home_url( '/login/' );
+    }
+
+    /**
+     * Una tantum: invalida la cache della home dopo aggiornamenti auth.
+     */
+    public function maybe_bust_front_cache() {
+        if ( get_option( 'g_event_auth_cache_bust_v3' ) ) {
+            return;
+        }
+
+        $front_id = (int) get_option( 'page_on_front' );
+        if ( $front_id ) {
+            wp_update_post(
+                array(
+                    'ID'                => $front_id,
+                    'post_modified'     => current_time( 'mysql' ),
+                    'post_modified_gmt' => current_time( 'mysql', 1 ),
+                )
+            );
+        }
+
+        self::purge_page_caches();
+        update_option( 'g_event_auth_cache_bust_v3', '1', false );
+    }
+
+    /**
+     * Script leggero: se c'è sessione socio ma la pagina cached è ancora guest, ricarica senza cache.
+     */
+    public function enqueue_auth_gate_script() {
+        if ( is_admin() ) {
+            return;
+        }
+
+        $base = plugins_url( '../assets/js/auth-gate.js', __FILE__ );
+        wp_enqueue_script( 'g-event-auth-gate', $base, array(), '1.0.3', true );
+    }
+
+    /**
+     * URL homepage del sito (pagina impostata come front page o root).
+     *
+     * @return string
+     */
+    public static function get_home_page_url() {
+        $url = home_url( '/' );
+
+        if ( 'page' === get_option( 'show_on_front' ) ) {
+            $front_id = (int) get_option( 'page_on_front' );
+            if ( $front_id ) {
+                $permalink = get_permalink( $front_id );
+                if ( $permalink && ! self::is_same_url( $permalink, self::get_login_page_url() ) ) {
+                    $url = $permalink;
+                }
+            }
+        }
+
+        // Query stabile: su SiteGround "/" resta in Dynamic Cache e ignora il cookie socio.
+        return add_query_arg( 'cral_h', '1', $url );
+    }
+
+    /**
+     * True se la richiesta corrente è la pagina di login.
+     *
+     * @return bool
+     */
+    private function is_login_page() {
+        $login_id = (int) get_option( 'cral_pagina_login', 0 );
+        if ( $login_id && is_page( $login_id ) ) {
+            return true;
+        }
+
+        if ( is_page( 'login' ) ) {
+            return true;
+        }
+
+        $login_path = wp_parse_url( self::get_login_page_url(), PHP_URL_PATH );
+        $login_path = untrailingslashit( $login_path ?: '/' );
+
+        return self::get_current_request_path() === $login_path;
+    }
+
+    /**
+     * True se la pagina corrente deve restare fuori cache (login/calendario gated).
+     *
+     * @return bool
+     */
+    private function should_disable_page_cache() {
+        if ( is_admin() ) {
+            return false;
+        }
+
+        // Sito interamente protetto: niente cache full-page.
+        return true;
+    }
+
+    /**
+     * Disabilita cache WP/plugin su pagine autenticate.
+     */
+    public function disable_auth_page_cache() {
+        if ( is_admin() || ! $this->should_disable_page_cache() ) {
+            return;
+        }
+
+        if ( ! defined( 'DONOTCACHEPAGE' ) ) {
+            define( 'DONOTCACHEPAGE', true );
+        }
+        if ( ! defined( 'DONOTCACHEDB' ) ) {
+            define( 'DONOTCACHEDB', true );
+        }
+        if ( ! defined( 'DONOTCACHEOBJECT' ) ) {
+            define( 'DONOTCACHEOBJECT', true );
+        }
+
+        // LiteSpeed / SG Optimizer.
+        do_action( 'litespeed_control_set_nocache', 'cral auth page' );
+    }
+
+    /**
+     * Header anti-cache (SiteGround Dynamic Cache incluso).
+     */
+    public function send_nocache_headers() {
+        if ( is_admin() || ! $this->should_disable_page_cache() ) {
+            return;
+        }
+
+        nocache_headers();
+
+        if ( headers_sent() ) {
+            return;
+        }
+
+        header( 'Cache-Control: private, no-cache, no-store, must-revalidate, max-age=0' );
+        header( 'Pragma: no-cache' );
+        header( 'Expires: Wed, 11 Jan 1984 05:00:00 GMT' );
+        header( 'X-Cache-Enabled: False' );
+        header( 'X-LiteSpeed-Cache-Control: no-cache' );
+    }
+
+    /**
+     * Svuota cache di hosting/plugin (SiteGround incluso).
+     * Necessario perché il Dynamic Cache ignora il cookie JWT custom.
+     */
+    public static function purge_page_caches() {
+        try {
+            if ( function_exists( 'sg_cachepress_purge_cache' ) ) {
+                sg_cachepress_purge_cache();
+            }
+            if ( function_exists( 'sg_cachepress_purge_everything' ) ) {
+                sg_cachepress_purge_everything();
+            }
+
+            if ( class_exists( '\SiteGround_Optimizer\Supercacher\Supercacher' ) ) {
+                $class = '\SiteGround_Optimizer\Supercacher\Supercacher';
+                if ( is_callable( array( $class, 'purge_cache' ) ) ) {
+                    call_user_func( array( $class, 'purge_cache' ) );
+                }
+                if ( is_callable( array( $class, 'flush_cache' ) ) ) {
+                    call_user_func( array( $class, 'flush_cache' ) );
+                }
+            }
+
+            if ( function_exists( 'wp_cache_flush' ) ) {
+                wp_cache_flush();
+            }
+
+            if ( has_action( 'litespeed_purge_all' ) ) {
+                do_action( 'litespeed_purge_all' );
+            }
+
+            do_action( 'cral_purge_page_caches' );
+        } catch ( \Throwable $e ) {
+            // Non bloccare il login se la purge fallisce.
+        }
+    }
+
+    /**
+     * True se l'utente è autenticato (socio JWT o sessione WordPress).
+     *
+     * @return bool
+     */
+    public static function is_cral_authenticated() {
+        if ( is_user_logged_in() ) {
+            return true;
+        }
+
+        if ( empty( $_COOKIE['cral_token'] ) ) {
+            return false;
+        }
+
+        $auth = new Auth();
+        return (bool) $auth->get_current_socio();
+    }
+
+    /**
+     * True se la richiesta corrente è la pagina area personale.
+     *
+     * @return bool
+     */
+    private function is_area_personale_page() {
+        $area_id = (int) get_option( 'cral_pagina_area_soci', 0 );
+        if ( $area_id && is_page( $area_id ) ) {
+            return true;
+        }
+
+        return is_page( 'area-personale' );
+    }
+
+    /**
+     * True se la richiesta è la home (unica pagina accessibile ai guest).
+     *
+     * @return bool
+     */
+    private function is_home_page_request() {
+        if ( is_front_page() || is_home() ) {
+            return true;
+        }
+
+        $home_path = untrailingslashit( wp_parse_url( home_url( '/' ), PHP_URL_PATH ) ?: '/' );
+
+        return self::get_current_request_path() === $home_path;
+    }
+
+    /**
+     * True se la richiesta è wp-login.php (accesso admin WP).
+     *
+     * @return bool
+     */
+    private function is_wp_login_request() {
+        global $pagenow;
+
+        if ( 'wp-login.php' === $pagenow ) {
+            return true;
+        }
+
+        $script = isset( $_SERVER['SCRIPT_NAME'] ) ? wp_unslash( $_SERVER['SCRIPT_NAME'] ) : '';
+
+        return false !== strpos( $script, 'wp-login.php' );
+    }
+
+    /**
+     * Gate sito [ciao-user]: guest possono vedere solo la home (login nel calendario).
+     * Tutte le altre URL — pagine, eventi, 404, /login — → redirect home.
+     * Utenti loggati su /login → redirect home.
+     */
+    public function redirect_guest_from_protected_pages() {
+        if ( is_admin() || wp_doing_ajax() || wp_doing_cron() || $this->is_wp_login_request() ) {
+            return;
+        }
+
+        $home_url = home_url( '/' );
+
+        if ( self::is_cral_authenticated() ) {
+            if ( $this->is_login_page() && ! self::is_same_url( $home_url, self::get_login_page_url() ) ) {
+                $home_path    = untrailingslashit( wp_parse_url( $home_url, PHP_URL_PATH ) ?: '/' );
+                $current_path = self::get_current_request_path();
+
+                if ( $home_path !== $current_path ) {
+                    wp_safe_redirect( $home_url );
+                    exit;
+                }
+            }
+
+            return;
+        }
+
+        // Guest: solo home (form login in [cral_calendario_eventi]).
+        if ( $this->is_home_page_request() ) {
+            return;
+        }
+
+        wp_safe_redirect( $home_url );
+        exit;
+    }
+
+    /**
      * Renderizza il form di login.
      *
      * @return string HTML del form.
      */
     public function render_login() {
-        // Se il socio è già loggato reindirizza alla home.
-        $auth = new \GEvent\Auth();
-        if ( $auth->get_current_socio() ) {
-            wp_redirect( home_url( '/' ) );
-            exit;
-        }
-
-        // Se è già loggato come admin WP, vai in admin.
-        if ( is_user_logged_in() && current_user_can( 'manage_options' ) ) {
-            wp_redirect( admin_url() );
-            exit;
-        }
+        $base = plugins_url( '../assets/', __FILE__ );
+        wp_enqueue_style( 'g-event-frontend', $base . 'css/frontend.css', array(), '1.1.10' );
 
         $nonce = wp_create_nonce( 'cral_login_nonce' );
         $creds = self::get_demo_credentials();
 
-        $fallback_eventi = home_url( '/eventi-2/' );
-        $eventi_page     = get_page_by_path( 'eventi-2' );
-        if ( $eventi_page instanceof \WP_Post ) {
-            $fallback_eventi = get_permalink( $eventi_page );
-        }
+        $fallback_redirect = self::get_home_page_url();
 
         ob_start();
         ?>
@@ -392,12 +715,24 @@ class Auth_Frontend {
         </div>
         <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Se il cookie di sessione c'è ma la pagina è ancora quella cached guest, forza refresh.
+            if (document.cookie.indexOf('cral_logged=1') !== -1) {
+                try {
+                    const url = new URL(window.location.href);
+                    if (!url.searchParams.get('cral_r')) {
+                        url.searchParams.set('cral_r', String(Date.now()));
+                        window.location.replace(url.toString());
+                        return;
+                    }
+                } catch (err) {}
+            }
+
             const form = document.getElementById('cral-login-form');
             if ( ! form ) return;
 
             const userInput = form.querySelector('#cral-socio-id');
             const passInput = form.querySelector('#cral-password');
-            const fallbackRedirect = <?php echo wp_json_encode( $fallback_eventi ); ?>;
+            const fallbackRedirect = <?php echo wp_json_encode( $fallback_redirect ); ?>;
 
             document.querySelectorAll('[data-cral-fill-user]').forEach(function(btn) {
                 btn.addEventListener('click', function() {
@@ -421,6 +756,7 @@ class Auth_Frontend {
 
                 fetch('<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({
                         action:   'cral_login',
@@ -433,7 +769,13 @@ class Auth_Frontend {
                 .then(data => {
                     if ( data.success ) {
                         const redirect = (data.data && data.data.redirect) ? data.data.redirect : fallbackRedirect;
-                        window.location.href = redirect;
+                        try {
+                            const url = new URL(redirect, window.location.origin);
+                            url.searchParams.set('cral_r', String(Date.now()));
+                            window.location.replace(url.toString());
+                        } catch (err) {
+                            window.location.href = redirect + (redirect.indexOf('?') >= 0 ? '&' : '?') + 'cral_r=' + Date.now();
+                        }
                     } else {
                         msg.style.display = 'block';
                         msg.textContent   = (data.data && data.data.message) ? data.data.message : 'Credenziali non valide.';
@@ -460,37 +802,56 @@ class Auth_Frontend {
      * @return string HTML del link.
      */
     public function render_logout() {
-        $auth = new \GEvent\Auth();
-        if ( ! $auth->get_current_socio() ) {
+        if ( ! self::is_cral_authenticated() ) {
             return '';
         }
 
-        $nonce = wp_create_nonce( 'cral_logout_nonce' );
+        $nonce    = wp_create_nonce( 'cral_logout_nonce' );
+        $home_url = self::get_home_page_url();
+        $html     = '<a href="#" class="cral-logout-link" data-cral-logout>Logout</a>';
+
+        if ( self::$logout_script_enqueued ) {
+            return $html;
+        }
+
+        self::$logout_script_enqueued = true;
 
         ob_start();
+        echo $html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         ?>
-        <a href="#" id="cral-logout-link">Esci</a>
         <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const link = document.getElementById('cral-logout-link');
-            if ( ! link ) return;
+            const homeUrl = <?php echo wp_json_encode( $home_url ); ?>;
 
-            link.addEventListener('click', function(e) {
-                e.preventDefault();
+            document.querySelectorAll('[data-cral-logout]').forEach(function(link) {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
 
-                fetch('<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
-                        action: 'cral_logout',
-                        nonce:  '<?php echo esc_js( $nonce ); ?>',
+                    fetch('<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            action: 'cral_logout',
+                            nonce:  '<?php echo esc_js( $nonce ); ?>',
+                        })
                     })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if ( data.success && data.data.redirect ) {
-                        window.location.href = data.data.redirect;
-                    }
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        const redirect = (data.success && data.data && data.data.redirect)
+                            ? data.data.redirect
+                            : homeUrl;
+                        try {
+                            const url = new URL(redirect, window.location.origin);
+                            url.searchParams.set('cral_r', String(Date.now()));
+                            window.location.replace(url.toString());
+                        } catch (err) {
+                            window.location.href = redirect + (redirect.indexOf('?') >= 0 ? '&' : '?') + 'cral_r=' + Date.now();
+                        }
+                    })
+                    .catch(function() {
+                        window.location.href = homeUrl + (homeUrl.indexOf('?') >= 0 ? '&' : '?') + 'cral_r=' + Date.now();
+                    });
                 });
             });
         });
@@ -527,7 +888,7 @@ class Auth_Frontend {
 
     /**
      * Shortcode [ciao-user] — menu principale + saluto/accesso header.
-     * A sinistra: voci del menu Primary WP. A destra: Accedi / Ciao Nome.
+     * Il gate di accesso al sito (solo home per guest) è in redirect_guest_from_protected_pages().
      *
      * @return string
      */
@@ -536,6 +897,7 @@ class Auth_Frontend {
         $socio_id = $auth->get_current_socio();
         $icon     = $this->get_ciao_user_icon_svg();
         $is_admin = is_user_logged_in() && current_user_can( 'manage_options' );
+        $home_url = home_url( '/' );
 
         if ( $is_admin ) {
             $wp_user = wp_get_current_user();
@@ -556,17 +918,30 @@ class Auth_Frontend {
                 esc_html__( 'ADMIN', 'g-event' )
             );
         } elseif ( ! $socio_id ) {
-            $login_url = get_permalink( get_option( 'cral_pagina_login' ) );
-            if ( ! $login_url ) {
-                $login_url = home_url( '/login/' );
-            }
+            if ( ! is_user_logged_in() ) {
+                $user_link = sprintf(
+                    '<a class="cral-ciao-user cral-ciao-user--guest" href="%s">%s<span class="cral-ciao-user__label">%s</span></a>',
+                    esc_url( $home_url ),
+                    $icon,
+                    esc_html__( 'Accedi', 'g-event' )
+                );
+            } else {
+                $wp_user = wp_get_current_user();
+                $nome    = trim( (string) $wp_user->first_name );
+                if ( '' === $nome ) {
+                    $nome = trim( (string) $wp_user->display_name );
+                }
+                if ( '' === $nome ) {
+                    $nome = (string) $wp_user->user_login;
+                }
 
-            $user_link = sprintf(
-                '<a class="cral-ciao-user cral-ciao-user--guest" href="%s">%s<span class="cral-ciao-user__label">%s</span></a>',
-                esc_url( $login_url ),
-                $icon,
-                esc_html__( 'Accedi', 'g-event' )
-            );
+                $user_link = sprintf(
+                    '<a class="cral-ciao-user" href="%s">%s<span class="cral-ciao-user__label">Ciao, %s</span></a>',
+                    esc_url( $home_url ),
+                    $icon,
+                    esc_html( $nome )
+                );
+            }
         } else {
             $nome = trim( (string) get_post_meta( $socio_id, '_cral_nome', true ) );
             if ( '' === $nome ) {

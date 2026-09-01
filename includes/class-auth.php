@@ -81,14 +81,13 @@ class Auth
             wp_set_auth_cookie($wp_user->ID, true);
 
             $is_admin = user_can($wp_user, 'manage_options');
-            $redirect = $is_admin
-                ? admin_url()
-                : $this->get_socio_frontend_redirect();
+
+            Auth_Frontend::purge_page_caches();
 
             wp_send_json_success(
                 array(
                     'message'  => 'Login effettuato.',
-                    'redirect' => $redirect,
+                    'redirect' => $this->get_socio_frontend_redirect(),
                     'role'     => $is_admin ? 'admin' : 'wp_user',
                 )
             );
@@ -139,9 +138,27 @@ class Auth
                 'path'     => '/',
                 'secure'   => is_ssl(),
                 'httponly' => true,
-                'samesite' => 'Strict',
+                'samesite' => 'Lax',
             )
         );
+
+        // Disponibile subito nella richiesta corrente.
+        $_COOKIE['cral_token'] = $token;
+
+        // Marker leggibile da JS / hosting (non contiene il JWT).
+        setcookie(
+            'cral_logged',
+            '1',
+            array(
+                'expires'  => $expires,
+                'path'     => '/',
+                'secure'   => is_ssl(),
+                'httponly' => false,
+                'samesite' => 'Lax',
+            )
+        );
+
+        Auth_Frontend::purge_page_caches();
 
         wp_send_json_success(
             array(
@@ -159,17 +176,7 @@ class Auth
      */
     private function get_socio_frontend_redirect()
     {
-        $eventi = get_page_by_path('eventi-2');
-        if ($eventi instanceof \WP_Post) {
-            return get_permalink($eventi);
-        }
-
-        $area = get_permalink(get_option('cral_pagina_area_soci'));
-        if ($area) {
-            return $area;
-        }
-
-        return home_url('/eventi-2/');
+        return Auth_Frontend::get_home_page_url();
     }
 
     /**
@@ -178,6 +185,14 @@ class Auth
      */
     public function handle_logout()
     {
+        $nonce = isset($_POST['nonce'])
+            ? sanitize_text_field(wp_unslash($_POST['nonce']))
+            : '';
+
+        if (! wp_verify_nonce($nonce, 'cral_logout_nonce')) {
+            wp_send_json_error(array('message' => 'Richiesta non valida.'));
+        }
+
         $token = isset($_COOKIE['cral_token'])
             ? sanitize_text_field(wp_unslash($_COOKIE['cral_token']))
             : '';
@@ -195,13 +210,32 @@ class Auth
                 'path'     => '/',
                 'secure'   => is_ssl(),
                 'httponly' => true,
-                'samesite' => 'Strict',
+                'samesite' => 'Lax',
             )
         );
 
-        // Reindirizza alla pagina di login.
-        $login_page = get_permalink( get_option( 'cral_pagina_login' ) );
-        wp_send_json_success(array('redirect' => $login_page));
+        unset($_COOKIE['cral_token']);
+
+        setcookie(
+            'cral_logged',
+            '',
+            array(
+                'expires'  => time() - HOUR_IN_SECONDS,
+                'path'     => '/',
+                'secure'   => is_ssl(),
+                'httponly' => false,
+                'samesite' => 'Lax',
+            )
+        );
+        unset($_COOKIE['cral_logged']);
+
+        if (is_user_logged_in()) {
+            wp_logout();
+        }
+
+        Auth_Frontend::purge_page_caches();
+
+        wp_send_json_success(array('redirect' => Auth_Frontend::get_home_page_url()));
     }
 
     /**

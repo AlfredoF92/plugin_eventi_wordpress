@@ -168,7 +168,7 @@ class Evento_Scheda {
             'g-event-scheda',
             plugins_url( '../assets/css/scheda-evento.css', __FILE__ ),
             array( 'g-event-scheda-font' ),
-            '2.2.7'
+            '2.2.9'
         );
 
         $desc_excerpt = '';
@@ -299,9 +299,12 @@ class Evento_Scheda {
                 </div>
 
                 <?php if ( $cover_url ) : ?>
-                <figure class="cral-scheda__poster">
-                    <img src="<?php echo esc_url( $cover_url ); ?>" alt="<?php echo esc_attr( $titolo ); ?>" class="cral-scheda__poster-img" />
-                </figure>
+                <div
+                    class="cral-scheda__poster e-con"
+                    role="img"
+                    aria-label="<?php echo esc_attr( $titolo ); ?>"
+                    style="background-image:url('<?php echo esc_url( $cover_url ); ?>');background-size:cover;background-position:center center;background-repeat:no-repeat;"
+                ></div>
                 <?php endif; ?>
             </header>
 

@@ -724,7 +724,7 @@ class CPT_Evento {
      * @param string $event_dt  Datetime Y-m-d H:i:s.
      * @return int ID nuovo post o 0.
      */
-    protected function duplicate_evento_post( $source_id, $event_dt ) {
+    public function duplicate_evento_post( $source_id, $event_dt ) {
         $source = get_post( $source_id );
         if ( ! $source || 'evento' !== $source->post_type ) {
             return 0;
